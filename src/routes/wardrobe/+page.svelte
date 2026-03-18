@@ -88,17 +88,18 @@
         {#each items as item}
           <div class="group bg-white rounded-[28px] overflow-hidden shadow-sm border border-gray-50 hover:shadow-xl transition-all duration-300">
 
-            <div class="aspect-[3/4] bg-[#F1F4F9] flex items-center justify-center transition-transform duration-500 relative">
-              <span class="text-gray-400 font-bold uppercase tracking-widest text-xs">{item.category}</span>
+            <div class="aspect-[3/4] bg-[#F1F4F9] flex items-center justify-center transition-transform duration-500 relative overflow-hidden">
+              {#if item.photo_url}
+                <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
+              {:else}
+                <span class="text-gray-400 font-bold uppercase tracking-widest text-xs">{item.category}</span>
+              {/if}
 
               <div class="absolute bottom-4 left-4 bg-white/80 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-gray-600 uppercase">
                 {item.seasons?.[0] || 'All Season'}
               </div>
 
-              <button
-                on:click={() => cycleStatus(item)}
-                class="absolute bottom-4 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all hover:scale-105 {statusColors[item.status || 'Clean']}"
-              >
+              <button on:click={() => cycleStatus(item)} class="absolute bottom-4 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all hover:scale-105 {statusColors[item.status || 'Clean']}">
                 {item.status || 'Clean'}
               </button>
 
@@ -108,11 +109,7 @@
                 </svg>
               </a>
 
-              <button
-                on:click={() => deleteItem(item.id)}
-                disabled={deletingId === item.id}
-                class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-md text-red-500 hover:bg-red-50 w-8 h-8 rounded-full flex items-center justify-center shadow-sm"
-              >
+              <button on:click={() => deleteItem(item.id)} disabled={deletingId === item.id} class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-md text-red-500 hover:bg-red-50 w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
                 {#if deletingId === item.id}
                   <div class="animate-spin w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full"></div>
                 {:else}
