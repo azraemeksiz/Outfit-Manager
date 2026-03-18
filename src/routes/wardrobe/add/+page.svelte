@@ -2,8 +2,8 @@
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
 
-  const CLOUD_NAME = import.meta.env.PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const UPLOAD_PRESET = import.meta.env.PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+  const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
   let name = '';
   let category = 'top';
@@ -100,7 +100,7 @@
 
     <form on:submit|preventDefault={handleAddItem} class="space-y-6">
 
-      <!-- Photo Upload -->
+      
       <div class="space-y-2">
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Photo</label>
         <label class="block cursor-pointer">
