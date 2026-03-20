@@ -86,6 +86,7 @@
             <select bind:value={category} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
               <option value="top">Top</option>
               <option value="bottom">Bottom</option>
+              <option value="dress">Dress</option>
               <option value="outerwear">Outerwear</option>
               <option value="shoes">Shoes</option>
               <option value="accessory">Accessory</option>

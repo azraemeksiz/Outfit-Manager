@@ -137,6 +137,7 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
             <option value="top">Top</option>
             <option value="bottom">Bottom</option>
             <option value="outerwear">Outerwear</option>
+            <option value="dress">Dress</option>
             <option value="shoes">Shoes</option>
             <option value="accessory">Accessory</option>
           </select>
