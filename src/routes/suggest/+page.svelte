@@ -143,15 +143,19 @@
 
   function scoreColor(item1: any, item2: any): number {
     if (!item1?.selected_color || !item2?.selected_color) return 0;
+    if (item1.is_patterned || item2.is_patterned) return 0;
     try {
-      const [h1, , l1] = hexToHsl(item1.selected_color);
-      const [h2, , l2] = hexToHsl(item2.selected_color);
-      const isNeutral = (l: number) => l < 20 || l > 80;
-      if (isNeutral(l1) || isNeutral(l2)) return 30;
+      const [h1, s1, l1] = hexToHsl(item1.selected_color);
+      const [h2, s2, l2] = hexToHsl(item2.selected_color);
+      const isNeutral = (s: number, l: number) => s < 15 || l < 15 || l > 85;
+      if (isNeutral(s1, l1) || isNeutral(s2, l2)) return 30;
       const diff = Math.abs(h1 - h2);
       const hueDiff = Math.min(diff, 360 - diff);
+      if (hueDiff >= 15 && hueDiff <= 45 && s1 > 40 && s2 > 40) return -30;
       if (hueDiff >= 150 && hueDiff <= 210) return 50;
-      if (hueDiff <= 30) return 50;
+      if (hueDiff <= 15 && Math.abs(s1 - s2) < 20) return 40;
+      if (hueDiff > 45 && hueDiff <= 60) return 30;
+      if (hueDiff >= 110 && hueDiff <= 130) return 20;
       return 0;
     } catch { return 0; }
   }
