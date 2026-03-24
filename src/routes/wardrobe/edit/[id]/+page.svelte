@@ -10,8 +10,8 @@
   let category = 'top';
   let color = '#3b82f6';
   let seasons: string[] = [];
+  let occasions: string[] = [];
   let is_patterned = false;
-  let occasion = '';
   let loading = true;
   let saving = false;
   let message = '';
@@ -21,6 +21,14 @@
       seasons = seasons.filter(x => x !== s);
     } else {
       seasons = [...seasons, s];
+    }
+  }
+
+  function toggleOccasion(o: string) {
+    if (occasions.includes(o)) {
+      occasions = occasions.filter(x => x !== o);
+    } else {
+      occasions = [...occasions, o];
     }
   }
 
@@ -36,8 +44,8 @@
       category = data.category;
       color = data.selected_color || '#3b82f6';
       seasons = data.seasons || [];
+      occasions = data.occasions || [];
       is_patterned = data.is_patterned || false;
-      occasion = data.occasion || '';
     }
     loading = false;
   });
@@ -53,8 +61,8 @@
         category,
         selected_color: color,
         seasons,
-        is_patterned,
-        occasion: occasion || null
+        occasions,
+        is_patterned
       })
       .eq('id', id);
 
@@ -89,28 +97,16 @@
             class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none" />
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-2">
-            <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Category</label>
-            <select bind:value={category} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
-              <option value="top">Top</option>
-              <option value="bottom">Bottom</option>
-              <option value="dress">Dress</option>
-              <option value="outerwear">Outerwear</option>
-              <option value="shoes">Shoes</option>
-              <option value="accessory">Accessory</option>
-            </select>
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Occasion</label>
-            <select bind:value={occasion} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
-              <option value="">None</option>
-              <option value="Formal">Formal</option>
-              <option value="Casual">Casual</option>
-              <option value="Sport">Sport</option>
-              <option value="Party">Party</option>
-            </select>
-          </div>
+        <div class="space-y-2">
+          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Category</label>
+          <select bind:value={category} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="dress">Dress</option>
+            <option value="outerwear">Outerwear</option>
+            <option value="shoes">Shoes</option>
+            <option value="accessory">Accessory</option>
+          </select>
         </div>
 
         <div class="space-y-2">
@@ -123,6 +119,21 @@
                 class="py-3 rounded-2xl font-bold text-sm transition-all {seasons.includes(s) ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
               >
                 {s === 'all-season' ? 'All Season' : s === 'spring-fall' ? 'Spring/Fall' : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Occasion</label>
+          <div class="grid grid-cols-3 gap-2">
+            {#each ['Formal', 'Casual', 'Sport', 'Party', 'Indoor'] as o}
+              <button
+                type="button"
+                on:click={() => toggleOccasion(o)}
+                class="py-3 rounded-2xl font-bold text-sm transition-all {occasions.includes(o) ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+              >
+                {o}
               </button>
             {/each}
           </div>

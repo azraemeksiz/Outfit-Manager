@@ -5,6 +5,9 @@
   let items: any[] = [];
   let loading = true;
   let deletingId: number | null = null;
+  let activeFilter = 'All';
+
+  const filters = ['All', 'Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Accessory'];
 
   const statusCycle = ['Clean', 'Dirty', 'Laundry', 'Drying'];
   const statusColors: Record<string, string> = {
@@ -13,6 +16,10 @@
     Laundry: 'bg-yellow-100 text-yellow-700',
     Drying: 'bg-blue-100 text-blue-600'
   };
+
+  $: filteredItems = activeFilter === 'All'
+    ? items
+    : items.filter(i => i.category === activeFilter.toLowerCase());
 
   onMount(async () => {
     await fetchItems();
@@ -52,10 +59,10 @@
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] p-8 font-sans">
+<div class="min-h-screen bg-[#F8F9FB] pb-24 p-8 font-sans">
   <div class="max-w-7xl mx-auto">
 
-    <header class="flex justify-between items-center mb-12">
+    <header class="flex justify-between items-center mb-8">
       <div>
         <h1 class="text-4xl font-extrabold text-[#1A1C1E] tracking-tight">My Wardrobe</h1>
         <p class="text-gray-500 mt-2">Organize your collection for better outfits</p>
@@ -64,6 +71,17 @@
         + Add New Item
       </a>
     </header>
+
+    <div class="flex gap-2 flex-wrap mb-8">
+      {#each filters as filter}
+        <button
+          on:click={() => activeFilter = filter}
+          class="px-4 py-2 rounded-xl font-bold text-sm transition-all {activeFilter === filter ? 'bg-[#1A1C1E] text-white' : 'bg-white text-gray-500 border border-gray-100 hover:border-gray-300'}"
+        >
+          {filter}
+        </button>
+      {/each}
+    </div>
 
     {#if loading}
       <div class="flex flex-col items-center justify-center h-64 space-y-4">
@@ -83,9 +101,15 @@
         <a href="/wardrobe/add" class="mt-8 text-blue-600 font-semibold hover:underline">Add your first item</a>
       </div>
 
+    {:else if filteredItems.length === 0}
+      <div class="flex flex-col items-center justify-center py-32 bg-white rounded-[32px] border border-dashed border-gray-200 shadow-sm">
+        <h2 class="text-2xl font-bold text-gray-900">No {activeFilter.toLowerCase()} items</h2>
+        <p class="text-gray-500 mt-2">Add some {activeFilter.toLowerCase()} items to your wardrobe.</p>
+      </div>
+
     {:else}
       <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-        {#each items as item}
+        {#each filteredItems as item}
           <div class="group bg-white rounded-[28px] overflow-hidden shadow-sm border border-gray-50 hover:shadow-xl transition-all duration-300">
 
             <div class="aspect-[3/4] bg-[#F1F4F9] flex items-center justify-center transition-transform duration-500 relative overflow-hidden">
@@ -123,7 +147,7 @@
             <div class="p-6">
               <h3 class="text-lg font-bold text-gray-900 mb-1">{item.name}</h3>
               <div class="flex items-center justify-between">
-                <p class="text-sm text-gray-500 capitalize">{item.occasion || item.category}</p>
+                <p class="text-sm text-gray-500 capitalize">{item.category}</p>
                 <div class="w-4 h-4 rounded-full border border-gray-100" style="background-color: {item.selected_color}"></div>
               </div>
             </div>

@@ -14,7 +14,7 @@
   let heatThreshold = 25;
   let locationAsked = false;
 
-  const occasions = ['', 'Formal', 'Casual', 'Sport', 'Party'];
+  const occasions = ['', 'Formal', 'Casual', 'Sport', 'Party' , 'Indoor'];
 
   function getCurrentSeason(): string {
     const month = new Date().getMonth() + 1;
@@ -83,7 +83,7 @@
     }
   });
 
-  function filterItems(allItems: any[]): any[] {
+ function filterItems(allItems: any[]): any[] {
     const season = getCurrentSeason();
     return allItems.filter(item => {
       if (item.seasons && item.seasons.length > 0) {
@@ -91,21 +91,34 @@
         const hasSeason = item.seasons.includes(season);
         if (!hasAllSeason && !hasSeason) return false;
       }
-      if (occasion && item.occasion && item.occasion !== occasion) return false;
+      if (occasion && item.occasions && item.occasions.length > 0) {
+        if (!item.occasions.includes(occasion)) return false;
+      }
       return true;
     });
   }
 
   function scoreWeather(item: any): number {
+    if (occasion === 'Indoor') return 0;
     if (temperature === null) return 0;
     let score = 0;
     const seasons = item.seasons || [];
-    const isWarmItem = seasons.includes('summer') || seasons.includes('spring-fall');
-    const isColdItem = seasons.includes('winter') || seasons.includes('spring-fall');
+    
+    const isAllSeason = seasons.includes('all-season') || seasons.length === 0;
+    const isWarmItem = seasons.includes('summer');
+    const isColdItem = seasons.includes('winter');
+    const isMildItem = seasons.includes('spring-fall');
+
+    if (isAllSeason) return 0;
+
     if (temperature < coldThreshold && isColdItem) score += 100;
     if (temperature > heatThreshold && isWarmItem) score += 100;
-    if (temperature < coldThreshold - 5 && !seasons.includes('winter')) score -= 400;
-    if (temperature > heatThreshold + 5 && !seasons.includes('summer')) score -= 400;
+    if (isMildItem && temperature >= coldThreshold && temperature <= heatThreshold) score += 50;
+
+    if (temperature < coldThreshold - 5 && !isColdItem && !isMildItem && !isAllSeason) score -= 400;
+    if (temperature > heatThreshold + 5 && !isWarmItem && !isMildItem && !isAllSeason) score -= 400;
+    if (temperature < coldThreshold && isWarmItem && !isColdItem && !isAllSeason) score -= 200;
+
     return score;
   }
 
