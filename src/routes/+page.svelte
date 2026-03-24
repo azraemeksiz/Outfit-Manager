@@ -54,7 +54,7 @@
     <div class="grid grid-cols-1 gap-6">
       <a href="/suggest" class="group bg-[#2D60FF] text-white rounded-[28px] p-8 shadow-lg shadow-blue-100 hover:bg-[#1E4AD9] transition-all transform hover:-translate-y-1">
         <div class="text-3xl mb-4">✨</div>
-        <h2 class="text-2xl font-black mb-1">Generate an Outfit for Me</h2>
+        <h2 class="text-2xl font-black mb-1">Generate an Outfit for MEEEE, Let's GO!</h2>
         <p class="text-blue-200 text-sm">Let the algorithm pick the best outfit based on weather, color and your wardrobe</p>
       </a>
 
