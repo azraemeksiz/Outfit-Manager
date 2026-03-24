@@ -1,7 +1,7 @@
 <script lang="ts">
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
-
+  
   const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
@@ -16,6 +16,7 @@
   let uploading = false;
   let loading = false;
   let message = '';
+  let colorDetected = false;
 
   function toggleSeason(s: string) {
     if (seasons.includes(s)) {
@@ -33,11 +34,54 @@
     }
   }
 
-  function handleFileSelect(event: Event) {
+async function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
       photoFile = input.files[0];
       photoPreview = URL.createObjectURL(photoFile);
+      colorDetected = false;
+
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 100;
+          canvas.height = 100;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+          ctx.drawImage(img, 0, 0, 100, 100);
+          const imageData = ctx.getImageData(0, 0, 100, 100).data;
+
+          const colorMap: Record<string, number> = {};
+
+          for (let i = 0; i < imageData.length; i += 4) {
+            const alpha = imageData[i + 3];
+            if (alpha < 128) continue;
+
+            // Rengi 32'ye yuvarla — benzer renkleri grupla
+            const r = Math.round(imageData[i] / 32) * 32;
+            const g = Math.round(imageData[i + 1] / 32) * 32;
+            const b = Math.round(imageData[i + 2] / 32) * 32;
+
+            // Beyaz ve siyahı atla
+            if (r > 220 && g > 220 && b > 220) continue;
+            if (r < 30 && g < 30 && b < 30) continue;
+
+            const key = `${r},${g},${b}`;
+            colorMap[key] = (colorMap[key] || 0) + 1;
+          }
+
+          const dominant = Object.entries(colorMap).sort((a, b) => b[1] - a[1])[0];
+          if (dominant) {
+            const [r, g, b] = dominant[0].split(',').map(Number);
+            color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            colorDetected = true;
+          }
+        } catch (e) {
+          colorDetected = false;
+        }
+      };
+      img.src = photoPreview;
     }
   }
 
@@ -104,7 +148,7 @@
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] p-6 flex items-center justify-center font-sans">
+<div class="min-h-screen bg-[#F8F9FB] pb-24 p-6 flex items-center justify-center font-sans">
   <div class="bg-white w-full max-w-xl rounded-[32px] shadow-sm border border-gray-100 p-8 md:p-12">
     <header class="mb-10">
       <a href="/wardrobe" class="text-blue-600 font-bold text-sm hover:opacity-80 transition">← Back to Wardrobe</a>
@@ -185,24 +229,33 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
-        <div class="space-y-2">
-          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Color Pick</label>
-          <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
-            <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
+      <div class="space-y-2">
+        <div class="flex items-center justify-between ml-1 mb-1">
+          <label class="text-xs font-black uppercase tracking-widest text-gray-400">Color</label>
+          {#if colorDetected}
+            <span class="text-xs font-bold text-green-500">Auto-detected from photo</span>
+          {/if}
+        </div>
+        <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
+          <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
+          <div>
             <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
+            {#if colorDetected}
+              <p class="text-xs text-gray-400 mt-0.5">You can override this manually</p>
+            {/if}
           </div>
         </div>
-        <div class="space-y-2">
-          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Pattern</label>
-          <button
-            type="button"
-            on:click={() => is_patterned = !is_patterned}
-            class="w-full bg-gray-50 rounded-2xl p-4 font-bold text-sm transition-all {is_patterned ? 'text-blue-600 ring-2 ring-blue-500' : 'text-gray-400'}"
-          >
-            {is_patterned ? '✓ Patterned' : 'Solid'}
-          </button>
-        </div>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Pattern</label>
+        <button
+          type="button"
+          on:click={() => is_patterned = !is_patterned}
+          class="w-full bg-gray-50 rounded-2xl p-4 font-bold text-sm transition-all {is_patterned ? 'text-blue-600 ring-2 ring-blue-500' : 'text-gray-400'}"
+        >
+          {is_patterned ? '✓ Patterned' : 'Solid'}
+        </button>
       </div>
 
       {#if message}
