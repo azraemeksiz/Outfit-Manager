@@ -9,12 +9,20 @@
   let name = '';
   let category = 'top';
   let color = '#3b82f6';
-  let season = 'all-season';
+  let seasons: string[] = [];
   let is_patterned = false;
   let occasion = '';
   let loading = true;
   let saving = false;
   let message = '';
+
+  function toggleSeason(s: string) {
+    if (seasons.includes(s)) {
+      seasons = seasons.filter(x => x !== s);
+    } else {
+      seasons = [...seasons, s];
+    }
+  }
 
   onMount(async () => {
     const { data, error } = await supabase
@@ -27,7 +35,7 @@
       name = data.name;
       category = data.category;
       color = data.selected_color || '#3b82f6';
-      season = data.seasons?.[0] || 'all-season';
+      seasons = data.seasons || [];
       is_patterned = data.is_patterned || false;
       occasion = data.occasion || '';
     }
@@ -44,7 +52,7 @@
         name,
         category,
         selected_color: color,
-        seasons: [season],
+        seasons,
         is_patterned,
         occasion: occasion || null
       })
@@ -74,6 +82,7 @@
       </div>
     {:else}
       <form on:submit|preventDefault={handleUpdate} class="space-y-6">
+
         <div class="space-y-2">
           <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Item Name</label>
           <input bind:value={name} type="text" required
@@ -93,18 +102,6 @@
             </select>
           </div>
           <div class="space-y-2">
-            <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>
-            <select bind:value={season} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
-              <option value="all-season">All Season</option>
-              <option value="winter">Winter</option>
-              <option value="summer">Summer</option>
-              <option value="spring-fall">Spring/Fall</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-2">
             <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Occasion</label>
             <select bind:value={occasion} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
               <option value="">None</option>
@@ -113,6 +110,31 @@
               <option value="Sport">Sport</option>
               <option value="Party">Party</option>
             </select>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>
+          <div class="grid grid-cols-2 gap-2">
+            {#each ['all-season', 'winter', 'summer', 'spring-fall'] as s}
+              <button
+                type="button"
+                on:click={() => toggleSeason(s)}
+                class="py-3 rounded-2xl font-bold text-sm transition-all {seasons.includes(s) ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+              >
+                {s === 'all-season' ? 'All Season' : s === 'spring-fall' ? 'Spring/Fall' : s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Color Pick</label>
+            <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
+              <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
+              <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
+            </div>
           </div>
           <div class="space-y-2">
             <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Pattern</label>
@@ -123,14 +145,6 @@
             >
               {is_patterned ? '✓ Patterned' : 'Solid'}
             </button>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Color Pick</label>
-          <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
-            <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
-            <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
           </div>
         </div>
 

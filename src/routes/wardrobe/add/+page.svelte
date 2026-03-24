@@ -3,12 +3,12 @@
   import { goto } from '$app/navigation';
 
   const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
   let name = '';
   let category = 'top';
   let color = '#3b82f6';
-  let season = 'all-season';
+  let seasons: string[] = [];
   let occasion = '';
   let is_patterned = false;
   let photoFile: File | null = null;
@@ -16,6 +16,14 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
   let uploading = false;
   let loading = false;
   let message = '';
+
+  function toggleSeason(s: string) {
+    if (seasons.includes(s)) {
+      seasons = seasons.filter(x => x !== s);
+    } else {
+      seasons = [...seasons, s];
+    }
+  }
 
   function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -58,7 +66,7 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       uploading = true;
       try {
         photo_url = await uploadToCloudinary(photoFile);
-      } catch (err) {
+      } catch {
         message = 'Error: Photo upload failed.';
         loading = false;
         uploading = false;
@@ -67,18 +75,16 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       uploading = false;
     }
 
-    const { error } = await supabase.from('items').insert([
-      {
-        name,
-        category,
-        selected_color: color,
-        seasons: [season],
-        occasion: occasion || null,
-        is_patterned,
-        photo_url,
-        user_id: user.id
-      }
-    ]);
+    const { error } = await supabase.from('items').insert([{
+      name,
+      category,
+      selected_color: color,
+      seasons,
+      occasion: occasion || null,
+      is_patterned,
+      photo_url,
+      user_id: user.id
+    }]);
 
     if (error) {
       message = `Error: ${error.message}`;
@@ -100,7 +106,6 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
     <form on:submit|preventDefault={handleAddItem} class="space-y-6">
 
-      
       <div class="space-y-2">
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Photo</label>
         <label class="block cursor-pointer">
@@ -136,24 +141,12 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
           <select bind:value={category} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
             <option value="top">Top</option>
             <option value="bottom">Bottom</option>
-            <option value="outerwear">Outerwear</option>
             <option value="dress">Dress</option>
+            <option value="outerwear">Outerwear</option>
             <option value="shoes">Shoes</option>
             <option value="accessory">Accessory</option>
           </select>
         </div>
-        <div class="space-y-2">
-          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>
-          <select bind:value={season} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
-            <option value="all-season">All Season</option>
-            <option value="winter">Winter</option>
-            <option value="summer">Summer</option>
-            <option value="spring-fall">Spring/Fall</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
         <div class="space-y-2">
           <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Occasion</label>
           <select bind:value={occasion} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
@@ -164,6 +157,31 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
             <option value="Party">Party</option>
           </select>
         </div>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>
+        <div class="grid grid-cols-2 gap-2">
+          {#each ['all-season', 'winter', 'summer', 'spring-fall'] as s}
+            <button
+              type="button"
+              on:click={() => toggleSeason(s)}
+              class="py-3 rounded-2xl font-bold text-sm transition-all {seasons.includes(s) ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+            >
+              {s === 'all-season' ? 'All Season' : s === 'spring-fall' ? 'Spring/Fall' : s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-2">
+          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Color Pick</label>
+          <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
+            <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
+            <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
+          </div>
+        </div>
         <div class="space-y-2">
           <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Pattern</label>
           <button
@@ -173,14 +191,6 @@ const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
           >
             {is_patterned ? '✓ Patterned' : 'Solid'}
           </button>
-        </div>
-      </div>
-
-      <div class="space-y-2">
-        <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Color Pick</label>
-        <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
-          <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
-          <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
         </div>
       </div>
 
