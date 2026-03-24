@@ -16,13 +16,7 @@
 
   const occasions = ['', 'Formal', 'Casual', 'Sport', 'Party' , 'Indoor'];
 
-  function getCurrentSeason(): string {
-    const month = new Date().getMonth() + 1;
-    if (month >= 3 && month <= 5) return 'spring-fall';
-    if (month >= 6 && month <= 8) return 'summer';
-    if (month >= 9 && month <= 11) return 'spring-fall';
-    return 'winter';
-  }
+
 
   async function fetchWeather(lat: number, lon: number) {
     try {
@@ -83,14 +77,8 @@
     }
   });
 
- function filterItems(allItems: any[]): any[] {
-    const season = getCurrentSeason();
+function filterItems(allItems: any[]): any[] {
     return allItems.filter(item => {
-      if (item.seasons && item.seasons.length > 0) {
-        const hasAllSeason = item.seasons.includes('all-season');
-        const hasSeason = item.seasons.includes(season);
-        if (!hasAllSeason && !hasSeason) return false;
-      }
       if (occasion && item.occasions && item.occasions.length > 0) {
         if (!item.occasions.includes(occasion)) return false;
       }
