@@ -10,6 +10,7 @@
     { href: '/wardrobe', label: 'Wardrobe' },
     { href: '/suggest', label: 'Suggest' },
     { href: '/outfits', label: 'Outfits' },
+    { href: '/settings', label: 'Settings' },
   ];
 
   const hideNavRoutes = ['/login', '/register', '/forgot-password'];

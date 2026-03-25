@@ -33,7 +33,7 @@
     weatherLoading = false;
   }
 
-  async function requestLocation() {
+ async function requestLocation() {
     locationAsked = true;
     weatherLoading = true;
     weatherError = '';
@@ -44,17 +44,30 @@
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        await fetchWeather(pos.coords.latitude, pos.coords.longitude);
-      },
-      (e) => {
-        weatherError = 'Could not fetch weather data.';
-        weatherLoading = false;
-      },
-      { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
-    );
+    let attempts = 0;
+    const maxAttempts = 6;
+
+    const tryGet = () => {
+      attempts++;
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          await fetchWeather(pos.coords.latitude, pos.coords.longitude);
+        },
+        (e) => {
+          if (attempts < maxAttempts) {
+            setTimeout(tryGet, 1500);
+          } else {
+            weatherError = 'Could not fetch weather data.';
+            weatherLoading = false;
+          }
+        },
+        { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
+      );
+    };
+
+    tryGet();
   }
+
 
   onMount(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -244,10 +257,18 @@ function filterItems(allItems: any[]): any[] {
 
   function getScoreReasons(suggestion: any): string[] {
     const reasons: string[] = [];
-    if (weatherError) reasons.push('Weather unavailable — color-based suggestion 🎨');
-    else if (temperature !== null && temperature < coldThreshold) reasons.push('Cold weather appropriate ❄️');
-    else if (temperature !== null && temperature > heatThreshold) reasons.push('Warm weather appropriate ☀️');
-    else if (temperature !== null) reasons.push('Mild weather appropriate 🌤️');
+    
+    if (occasion === 'Indoor') {
+      reasons.push('Indoor outfit — weather not considered 🏠');
+    } else if (weatherError) {
+      reasons.push('Weather unavailable — color-based suggestion 🎨');
+    } else if (temperature !== null && temperature < coldThreshold) {
+      reasons.push('Cold weather appropriate ❄️');
+    } else if (temperature !== null && temperature > heatThreshold) {
+      reasons.push('Warm weather appropriate ☀️');
+    } else if (temperature !== null) {
+      reasons.push('Mild weather appropriate 🌤️');
+    }
 
     const top = suggestion.items.find((i: any) => i.category === 'top');
     const bottom = suggestion.items.find((i: any) => i.category === 'bottom');
