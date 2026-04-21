@@ -15,6 +15,10 @@
   let showModal = false;
   let saving = false;
 
+  let showLaundryModal = false;
+  let dirtyItemIds: Set<number> = new Set();
+  let markingWorn = false;
+
   $: monthLabel = new Date(currentYear, currentMonth, 1).toLocaleString('en-US', {
     month: 'long',
     year: 'numeric'
@@ -136,6 +140,47 @@
   });
 
   $: sortedEntries = Object.entries(entries).sort(([a], [b]) => a.localeCompare(b));
+
+  function openLaundryModal() {
+    const items = entries[selectedDate!]?.outfits?.item_list || [];
+    const washableCategories = ['top', 'bottom', 'dress', 'outerwear'];
+    dirtyItemIds = new Set(
+      items.filter((i: any) => washableCategories.includes(i.category)).map((i: any) => i.id)
+    );
+    showLaundryModal = true;
+  }
+
+  function toggleDirty(id: number) {
+    const updated = new Set(dirtyItemIds);
+    if (updated.has(id)) updated.delete(id);
+    else updated.add(id);
+    dirtyItemIds = updated;
+  }
+
+  async function confirmWorn() {
+    if (!selectedDate) return;
+    markingWorn = true;
+
+    const entry = entries[selectedDate];
+    const items: any[] = entry?.outfits?.item_list || [];
+    const today = getTodayStr();
+
+    await supabase
+      .from('calendar_entries')
+      .update({ is_worn: true })
+      .eq('id', entry.id);
+
+    for (const item of items) {
+      const update: any = { last_worn_date: today };
+      if (dirtyItemIds.has(item.id)) update.status = 'Dirty';
+      await supabase.from('items').update(update).eq('id', item.id);
+    }
+
+    await fetchEntries();
+    markingWorn = false;
+    showLaundryModal = false;
+    showModal = false;
+  }
 </script>
 
 <div class="min-h-screen bg-[#F8F9FB] pb-24 p-6 font-sans">
@@ -302,7 +347,9 @@
           <h3 class="text-xl font-black text-gray-900 mt-1">{formatDate(selectedDate)}</h3>
         </div>
         <div class="flex items-center gap-3">
-          {#if entries[selectedDate]}
+          {#if entries[selectedDate]?.is_worn}
+            <span class="text-xs font-black text-green-500 bg-green-50 px-3 py-1 rounded-full">Worn ✓</span>
+          {:else if entries[selectedDate]}
             <button
               on:click={removeEntry}
               class="text-red-400 hover:text-red-600 text-sm font-bold transition-colors"
@@ -332,7 +379,7 @@
             {@const isAssigned = entries[selectedDate]?.outfit_id === outfit.id}
             <button
               on:click={() => assignOutfit(outfit)}
-              disabled={saving}
+              disabled={saving || entries[selectedDate]?.is_worn}
               class="w-full flex items-center gap-4 p-4 rounded-[20px] border-2 transition-all text-left disabled:opacity-50
                 {isAssigned ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-200 bg-white'}"
             >
@@ -361,7 +408,73 @@
             </button>
           {/each}
         </div>
+
+        {#if entries[selectedDate] && !entries[selectedDate].is_worn}
+          <button
+            on:click={openLaundryModal}
+            class="w-full mt-4 bg-gray-900 text-white py-4 rounded-2xl font-black text-sm hover:bg-gray-700 active:scale-95 transition-all"
+          >
+            👕 Mark as Worn
+          </button>
+        {/if}
       {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- Laundry modal -->
+{#if showLaundryModal && selectedDate}
+  <div
+    class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-end justify-center"
+    on:click|self={() => showLaundryModal = false}
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="bg-white rounded-t-[32px] w-full max-w-lg p-6 pb-28 max-h-[85vh] overflow-y-auto">
+      <div class="mb-6">
+        <p class="text-xs font-black uppercase tracking-widest text-gray-400">Mark as Worn</p>
+        <h3 class="text-xl font-black text-gray-900 mt-1">Which items need washing?</h3>
+        <p class="text-sm text-gray-400 mt-1">Unselect anything that's still clean.</p>
+      </div>
+
+      <div class="space-y-3">
+        {#each (entries[selectedDate]?.outfits?.item_list || []) as item}
+          {@const isDirty = dirtyItemIds.has(item.id)}
+          <button
+            on:click={() => toggleDirty(item.id)}
+            class="w-full flex items-center gap-4 p-4 rounded-[20px] border-2 transition-all text-left
+              {isDirty ? 'border-gray-900 bg-gray-50' : 'border-gray-100 bg-white opacity-50'}"
+          >
+            <div class="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+              {#if item.photo_url}
+                <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
+              {:else}
+                <div class="w-full h-full" style="background-color: {item.selected_color || '#e5e7eb'}"></div>
+              {/if}
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-bold text-gray-900 truncate">{item.name}</p>
+              <p class="text-xs capitalize {isDirty ? 'text-red-400 font-bold' : 'text-gray-400'}">{isDirty ? 'Needs washing' : 'Still clean'}</p>
+            </div>
+            <div class="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center
+              {isDirty ? 'bg-gray-900' : 'border-2 border-gray-200'}">
+              {#if isDirty}
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                </svg>
+              {/if}
+            </div>
+          </button>
+        {/each}
+      </div>
+
+      <button
+        on:click={confirmWorn}
+        disabled={markingWorn}
+        class="w-full mt-6 bg-[#2D60FF] text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-blue-100 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50"
+      >
+        {markingWorn ? 'Saving...' : 'Done'}
+      </button>
     </div>
   </div>
 {/if}
