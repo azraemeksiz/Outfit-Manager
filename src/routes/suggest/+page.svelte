@@ -14,9 +14,7 @@
   let heatThreshold = 25;
   let locationAsked = false;
 
-  const occasions = ['', 'Formal', 'Casual', 'Sport', 'Party' , 'Indoor'];
-
-
+  const occasions = ['', 'Formal', 'Casual', 'Sport', 'Party', 'Indoor'];
 
   async function fetchWeather(lat: number, lon: number) {
     try {
@@ -33,7 +31,7 @@
     weatherLoading = false;
   }
 
- async function requestLocation() {
+  async function requestLocation() {
     locationAsked = true;
     weatherLoading = true;
     weatherError = '';
@@ -53,7 +51,7 @@
         async (pos) => {
           await fetchWeather(pos.coords.latitude, pos.coords.longitude);
         },
-        (e) => {
+        () => {
           if (attempts < maxAttempts) {
             setTimeout(tryGet, 1500);
           } else {
@@ -67,7 +65,6 @@
 
     tryGet();
   }
-
 
   onMount(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -90,7 +87,7 @@
     }
   });
 
-function filterItems(allItems: any[]): any[] {
+  function filterItems(allItems: any[]): any[] {
     return allItems.filter(item => {
       if (occasion && item.occasions && item.occasions.length > 0) {
         if (!item.occasions.includes(occasion)) return false;
@@ -104,22 +101,18 @@ function filterItems(allItems: any[]): any[] {
     if (temperature === null) return 0;
     let score = 0;
     const seasons = item.seasons || [];
-    
     const isAllSeason = seasons.includes('all-season') || seasons.length === 0;
     const isWarmItem = seasons.includes('summer');
     const isColdItem = seasons.includes('winter');
     const isMildItem = seasons.includes('spring-fall');
 
     if (isAllSeason) return 0;
-
     if (temperature < coldThreshold && isColdItem) score += 100;
     if (temperature > heatThreshold && isWarmItem) score += 100;
     if (isMildItem && temperature >= coldThreshold && temperature <= heatThreshold) score += 50;
-
     if (temperature < coldThreshold - 5 && !isColdItem && !isMildItem && !isAllSeason) score -= 400;
     if (temperature > heatThreshold + 5 && !isWarmItem && !isMildItem && !isAllSeason) score -= 400;
     if (temperature < coldThreshold && isWarmItem && !isColdItem && !isAllSeason) score -= 200;
-
     return score;
   }
 
@@ -164,6 +157,7 @@ function filterItems(allItems: any[]): any[] {
   function scorePattern(top: any, bottom: any): number {
     if (!top || !bottom) return 0;
     if (top.is_patterned && bottom.is_patterned) return -20;
+    if (top.is_patterned || bottom.is_patterned) return 20;
     return 0;
   }
 
@@ -203,14 +197,16 @@ function filterItems(allItems: any[]): any[] {
         let bestOuterwear = null;
         if (outerwear.length > 0) {
           bestOuterwear = outerwear.reduce((best: any, ow: any) => {
-            return (scoreWeather(ow) + scoreColor(top, ow)) > (scoreWeather(best) + scoreColor(top, best)) ? ow : best;
+            return scoreWeather(ow) > scoreWeather(best) ? ow : best;
           });
           score += scoreWeather(bestOuterwear);
         }
 
         let bestShoes = null;
         if (shoes.length > 0) {
-          bestShoes = shoes[0];
+          bestShoes = shoes.reduce((best: any, sh: any) => {
+            return scoreWeather(sh) > scoreWeather(best) ? sh : best;
+          });
           score += scoreWeather(bestShoes);
         }
 
@@ -232,14 +228,16 @@ function filterItems(allItems: any[]): any[] {
       let bestOuterwear = null;
       if (outerwear.length > 0) {
         bestOuterwear = outerwear.reduce((best: any, ow: any) => {
-          return (scoreWeather(ow) + scoreColor(dress, ow)) > (scoreWeather(best) + scoreColor(dress, best)) ? ow : best;
+          return scoreWeather(ow) > scoreWeather(best) ? ow : best;
         });
         score += scoreWeather(bestOuterwear);
       }
 
       let bestShoes = null;
       if (shoes.length > 0) {
-        bestShoes = shoes[0];
+        bestShoes = shoes.reduce((best: any, sh: any) => {
+          return scoreWeather(sh) > scoreWeather(best) ? sh : best;
+        });
         score += scoreWeather(bestShoes);
       }
 
@@ -252,12 +250,23 @@ function filterItems(allItems: any[]): any[] {
       }
     }
 
-    return combinations.sort((a, b) => b.score - a.score).slice(0, 3);
+    return combinations
+      .sort((a, b) => b.score - a.score)
+      .filter((combo, index, arr) => {
+        const topId = combo.items.find((i: any) => i.category === 'top' || i.category === 'dress')?.id;
+        const bottomId = combo.items.find((i: any) => i.category === 'bottom')?.id;
+        const key = `${topId}-${bottomId}`;
+        return arr.findIndex(c => {
+          const cTopId = c.items.find((i: any) => i.category === 'top' || i.category === 'dress')?.id;
+          const cBottomId = c.items.find((i: any) => i.category === 'bottom')?.id;
+          return `${cTopId}-${cBottomId}` === key;
+        }) === index;
+      })
+      .slice(0, 3);
   }
 
   function getScoreReasons(suggestion: any): string[] {
     const reasons: string[] = [];
-    
     if (occasion === 'Indoor') {
       reasons.push('Indoor outfit — weather not considered 🏠');
     } else if (weatherError) {
@@ -291,7 +300,7 @@ function filterItems(allItems: any[]): any[] {
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] p-6 font-sans">
+<div class="min-h-screen bg-[#F8F9FB] p-6 pb-24 font-sans">
   <div class="max-w-3xl mx-auto">
     <header class="mb-10">
       <a href="/" class="text-blue-600 font-bold text-sm hover:opacity-80 transition">← Back to Dashboard</a>

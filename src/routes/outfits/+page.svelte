@@ -32,80 +32,99 @@
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] p-8 font-sans">
-  <div class="max-w-7xl mx-auto">
-    <header class="flex justify-between items-center mb-12">
+<div class="min-h-screen bg-[#F8F9FB] pb-28 font-sans">
+
+  <div class="p-6 max-w-4xl mx-auto">
+    <header class="flex items-center justify-between mb-8 pt-2">
       <div>
-        <h1 class="text-4xl font-extrabold text-[#1A1C1E] tracking-tight">My Outfits</h1>
-        <p class="text-gray-500 mt-2">Your saved outfit combinations</p>
+        <h1 class="text-4xl font-black text-[#1A1C1E] tracking-tight">My Outfits</h1>
+        <p class="text-gray-400 mt-1 text-sm">Your saved combinations</p>
       </div>
-      <a href="/outfits/create" class="bg-[#2D60FF] text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-[#1E4AD9] transition-all transform hover:-translate-y-1">
-        + Create Outfit
+      <a href="/outfits/create"
+        class="bg-[#2D60FF] text-white px-6 py-3 rounded-2xl font-bold text-sm shadow-lg shadow-blue-100 hover:bg-[#1E4AD9] transition-all active:scale-95">
+        + Create
       </a>
     </header>
 
     {#if loading}
-      <div class="flex flex-col items-center justify-center h-64 space-y-4">
+      <div class="flex flex-col items-center justify-center h-64 gap-4">
         <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
         <p class="text-gray-400 font-medium">Loading outfits...</p>
       </div>
 
     {:else if outfits.length === 0}
-      <div class="flex flex-col items-center justify-center py-32 bg-white rounded-[32px] border border-dashed border-gray-200 shadow-sm">
-        <div class="bg-blue-50 p-6 rounded-full mb-6">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-        </div>
-        <h2 class="text-2xl font-bold text-gray-900">You have no outfits yet</h2>
-        <p class="text-gray-500 mt-2 max-w-xs text-center">Create your first outfit combination</p>
-        <a href="/outfits/create" class="mt-8 text-blue-600 font-semibold hover:underline">Create your first outfit &rarr;</a>
+      <div class="flex flex-col items-center justify-center py-32 bg-white rounded-[32px] border border-dashed border-gray-200">
+        <div class="text-6xl mb-6">👗</div>
+        <h2 class="text-2xl font-bold text-gray-900">No outfits yet</h2>
+        <p class="text-gray-400 mt-2 text-sm text-center max-w-xs">
+          Create your first outfit by combining pieces from your wardrobe.
+        </p>
+        <a href="/outfits/create" class="mt-8 bg-[#2D60FF] text-white px-8 py-3 rounded-2xl font-bold text-sm hover:bg-[#1E4AD9] transition-all">
+          Create Outfit
+        </a>
       </div>
 
     {:else}
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+      <div class="space-y-4">
         {#each outfits as outfit}
-          <div class="group bg-white rounded-[28px] overflow-hidden shadow-sm border border-gray-50 hover:shadow-xl transition-all duration-300">
+          <div class="bg-white rounded-[24px] shadow-sm border border-gray-50 overflow-hidden hover:shadow-md transition-all">
+            <div class="flex items-stretch">
 
-            
-            <div class="p-4 bg-[#F1F4F9] grid grid-cols-3 gap-2 min-h-[160px]">
-              {#each (outfit.item_list || []).slice(0, 3) as item}
-                <div class="aspect-square rounded-xl overflow-hidden bg-white flex items-center justify-center">
-                  {#if item.photo_url}
-                    <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
-                  {:else}
-                    <div class="w-full h-full" style="background-color: {item.selected_color || '#e5e7eb'}"></div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
+              <!-- Item strip -->
+              <div class="flex gap-0 flex-shrink-0">
+                {#each (outfit.item_list || []).slice(0, 4) as item, i}
+                  <div class="w-20 h-24 flex-shrink-0 bg-[#F1F4F9] relative {i === 0 ? '' : 'border-l border-white/50'}">
+                    {#if item.photo_url}
+                      <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
+                    {:else}
+                      <div class="w-full h-full flex items-center justify-center">
+                        <div class="w-8 h-8 rounded-full" style="background-color: {item.selected_color || '#e5e7eb'}"></div>
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+                {#if (outfit.item_list?.length || 0) > 4}
+                  <div class="w-10 h-24 bg-gray-100 flex items-center justify-center border-l border-white/50">
+                    <span class="text-xs font-bold text-gray-400">+{outfit.item_list.length - 4}</span>
+                  </div>
+                {/if}
+              </div>
 
-            <div class="p-6">
-              <div class="flex items-start justify-between">
+              <!-- Info -->
+              <div class="flex-1 p-5 flex flex-col justify-between min-w-0">
                 <div>
-                  <h3 class="text-lg font-bold text-gray-900 mb-1">{outfit.name}</h3>
-                  <p class="text-sm text-gray-400">{outfit.item_list?.length || 0} items</p>
+                  <h3 class="text-lg font-black text-gray-900 truncate">{outfit.name}</h3>
+                  <div class="flex flex-wrap gap-1.5 mt-2">
+                    {#each (outfit.item_list || []) as item}
+                      <span class="text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full capitalize">
+                        {item.category}
+                      </span>
+                    {/each}
+                  </div>
                 </div>
+                <p class="text-xs text-gray-400 mt-3">{outfit.item_list?.length || 0} items</p>
+              </div>
+
+              <!-- Delete -->
+              <div class="flex items-center pr-5">
                 <button
                   on:click={() => deleteOutfit(outfit.id)}
                   disabled={deletingId === outfit.id}
-                  class="text-red-400 hover:text-red-600 transition-colors"
+                  class="w-9 h-9 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-400 hover:text-red-600 transition-all"
                 >
                   {#if deletingId === outfit.id}
-                    <div class="animate-spin w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full"></div>
+                    <div class="animate-spin w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full"></div>
                   {:else}
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   {/if}
                 </button>
               </div>
             </div>
-
           </div>
         {/each}
       </div>
     {/if}
-
   </div>
 </div>
