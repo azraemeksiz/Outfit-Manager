@@ -32,23 +32,23 @@
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] pb-28 font-sans">
+<div class="min-h-screen bg-[#FFF5F9] pb-28 font-sans">
 
-  <div class="p-6 max-w-4xl mx-auto">
-    <header class="flex items-center justify-between mb-8 pt-2">
-      <div>
-        <h1 class="text-4xl font-black text-[#1A1C1E] tracking-tight">My Outfits</h1>
+  <div class="px-4 pt-6 max-w-lg mx-auto">
+    <header class="flex items-center justify-between mb-6 gap-3">
+      <div class="min-w-0">
+        <h1 class="text-3xl font-black text-[#1A1C1E] tracking-tight">My Outfits</h1>
         <p class="text-gray-400 mt-1 text-sm">Your saved combinations</p>
       </div>
       <a href="/outfits/create"
-        class="bg-[#2D60FF] text-white px-6 py-3 rounded-2xl font-bold text-sm shadow-lg shadow-blue-100 hover:bg-[#1E4AD9] transition-all active:scale-95">
+        class="text-white px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-95 flex-shrink-0 whitespace-nowrap" style="background: linear-gradient(135deg, #f472b6, #ec4899); box-shadow: 0 4px 14px rgba(236,72,153,0.25);">
         + Create
       </a>
     </header>
 
     {#if loading}
       <div class="flex flex-col items-center justify-center h-64 gap-4">
-        <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
+        <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-pink-400"></div>
         <p class="text-gray-400 font-medium">Loading outfits...</p>
       </div>
 
@@ -59,7 +59,7 @@
         <p class="text-gray-400 mt-2 text-sm text-center max-w-xs">
           Create your first outfit by combining pieces from your wardrobe.
         </p>
-        <a href="/outfits/create" class="mt-8 bg-[#2D60FF] text-white px-8 py-3 rounded-2xl font-bold text-sm hover:bg-[#1E4AD9] transition-all">
+        <a href="/outfits/create" class="mt-8 text-white px-8 py-3 rounded-2xl font-bold text-sm transition-all" style="background: linear-gradient(135deg, #f472b6, #ec4899);">
           Create Outfit
         </a>
       </div>
@@ -70,39 +70,24 @@
           <div class="bg-white rounded-[24px] shadow-sm border border-gray-50 overflow-hidden hover:shadow-md transition-all">
             <div class="flex items-stretch">
 
-              <!-- Item strip -->
-              <div class="flex gap-0 flex-shrink-0">
-                {#each (outfit.item_list || []).slice(0, 4) as item, i}
-                  <div class="w-20 h-24 flex-shrink-0 bg-[#F1F4F9] relative {i === 0 ? '' : 'border-l border-white/50'}">
+              <div class="flex items-center gap-1.5 px-3 flex-shrink-0">
+                {#each (outfit.item_list || []).slice(0, 3) as item}
+                  <div class="w-10 h-10 rounded-xl overflow-hidden bg-pink-50 flex-shrink-0">
                     {#if item.photo_url}
                       <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
                     {:else}
-                      <div class="w-full h-full flex items-center justify-center">
-                        <div class="w-8 h-8 rounded-full" style="background-color: {item.selected_color || '#e5e7eb'}"></div>
-                      </div>
+                      <div class="w-full h-full" style="background-color: {item.selected_color || '#e5e7eb'}"></div>
                     {/if}
                   </div>
                 {/each}
-                {#if (outfit.item_list?.length || 0) > 4}
-                  <div class="w-10 h-24 bg-gray-100 flex items-center justify-center border-l border-white/50">
-                    <span class="text-xs font-bold text-gray-400">+{outfit.item_list.length - 4}</span>
-                  </div>
+                {#if (outfit.item_list?.length || 0) > 3}
+                  <span class="text-[10px] font-bold text-gray-400 ml-0.5">+{outfit.item_list.length - 3}</span>
                 {/if}
               </div>
 
-              <!-- Info -->
-              <div class="flex-1 p-5 flex flex-col justify-between min-w-0">
-                <div>
-                  <h3 class="text-lg font-black text-gray-900 truncate">{outfit.name}</h3>
-                  <div class="flex flex-wrap gap-1.5 mt-2">
-                    {#each (outfit.item_list || []) as item}
-                      <span class="text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full capitalize">
-                        {item.category}
-                      </span>
-                    {/each}
-                  </div>
-                </div>
-                <p class="text-xs text-gray-400 mt-3">{outfit.item_list?.length || 0} items</p>
+              <div class="flex-1 py-4 pr-2 flex flex-col justify-center min-w-0">
+                <h3 class="text-sm font-black text-gray-900 truncate">{outfit.name}</h3>
+                <p class="text-xs text-gray-400 mt-0.5">{outfit.item_list?.length || 0} items</p>
               </div>
 
               <!-- Delete -->

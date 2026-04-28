@@ -10,6 +10,7 @@
 
   let outfits: any[] = [];
   let entries: Record<string, any> = {};
+  let itemStatusMap: Record<number, string> = {};
   let loading = true;
   let selectedDate: string | null = null;
   let showModal = false;
@@ -96,7 +97,7 @@
       await supabase.from('calendar_entries').insert([payload]);
     }
 
-    // Yeniden çek — outfit detayları JOIN ile gelsin
+    
     await fetchEntries();
     saving = false;
     showModal = false;
@@ -130,14 +131,30 @@
   onMount(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const [{ data: outfitData }] = await Promise.all([
+      const [{ data: outfitData }, { data: itemData }] = await Promise.all([
         supabase.from('outfits').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('items').select('id, status').eq('user_id', user.id),
         fetchEntries()
       ]);
       if (outfitData) outfits = outfitData;
+      if (itemData) itemStatusMap = Object.fromEntries(itemData.map((i: any) => [i.id, i.status]));
     }
     loading = false;
   });
+
+  function getDirtyItems(itemList: any[]): any[] {
+    return itemList.filter(item => {
+      const status = itemStatusMap[item.id];
+      return status && status !== 'Clean';
+    });
+  }
+
+  function dirtyLabel(status: string): string {
+    if (status === 'Dirty') return 'needs washing';
+    if (status === 'Laundry') return 'in the wash';
+    if (status === 'Drying') return 'still drying';
+    return status;
+  }
 
   $: sortedEntries = Object.entries(entries).sort(([a], [b]) => a.localeCompare(b));
 
@@ -183,42 +200,48 @@
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] pb-24 p-6 font-sans">
-  <div class="max-w-2xl mx-auto">
+<div class="min-h-screen bg-[#FFF5F9] pb-24 font-sans">
+  <div class="max-w-2xl mx-auto px-4 pt-6">
 
-    <header class="mb-8">
-      <h1 class="text-4xl font-black text-gray-900 tracking-tight">Calendar</h1>
-      <p class="text-gray-400 mt-2">Plan your outfits ahead of time.</p>
+    <header class="mb-6 flex items-end justify-between">
+      <div>
+        <h1 class="text-4xl font-black text-gray-900 tracking-tight">Calendar</h1>
+        <p class="text-gray-400 mt-1 text-sm">Plan your outfits ahead of time.</p>
+      </div>
+      {#if !loading && sortedEntries.length > 0}
+        <span class="text-xs font-black px-3 py-1.5 rounded-full mb-1"
+          style="background: rgba(249,168,212,0.2); color: #e879a8">
+          {sortedEntries.length} planned
+        </span>
+      {/if}
     </header>
 
     {#if loading}
       <div class="flex justify-center py-32">
-        <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-600"></div>
+        <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#2D60FF]"></div>
       </div>
     {:else}
 
-      <div class="bg-white rounded-[24px] p-6 shadow-sm border border-gray-50">
-        <!-- Month nav -->
-        <div class="flex items-center justify-between mb-6">
+      <div class="bg-white rounded-[28px] p-5 shadow-sm border border-gray-100">
+        <div class="flex items-center justify-between mb-5">
           <button on:click={prevMonth}
-            class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-all text-xl font-bold text-gray-600">
+            class="w-9 h-9 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-all text-lg font-bold text-gray-500">
             ‹
           </button>
-          <h2 class="text-lg font-black text-gray-900">{monthLabel}</h2>
+          <h2 class="text-base font-black text-gray-900 tracking-wide">{monthLabel}</h2>
           <button on:click={nextMonth}
-            class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-all text-xl font-bold text-gray-600">
+            class="w-9 h-9 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-all text-lg font-bold text-gray-500">
             ›
           </button>
         </div>
 
-        <div class="grid grid-cols-7 mb-1">
+        <div class="grid grid-cols-7 mb-2">
           {#each WEEKDAYS as day}
-            <div class="text-center text-[10px] font-black uppercase tracking-widest text-gray-400 py-1">{day}</div>
+            <div class="text-center text-[9px] font-black uppercase tracking-widest text-gray-300 py-1">{day}</div>
           {/each}
         </div>
 
-        
-        <div class="grid grid-cols-7 gap-1.5">
+        <div class="grid grid-cols-7 gap-1">
           {#each calendarDays as dateStr}
             {#if dateStr === null}
               <div class="aspect-[3/4]"></div>
@@ -228,34 +251,23 @@
               {@const firstItem = entry?.outfits?.item_list?.[0]}
               <button
                 on:click={() => openDay(dateStr)}
-                class="aspect-[3/4] rounded-2xl relative overflow-hidden transition-all active:scale-95
-                  {isToday ? 'ring-2 ring-[#2D60FF]' : ''}
+                class="aspect-[3/4] rounded-xl relative overflow-hidden transition-all active:scale-95
+                  {isToday ? 'ring-2 ring-pink-400 ring-offset-1' : ''}
                   {entry ? '' : 'bg-gray-50 hover:bg-gray-100'}"
               >
                 {#if entry}
-                  <!-- Background: photo or color -->
                   {#if firstItem?.photo_url}
-                    <img
-                      src={firstItem.photo_url}
-                      alt=""
-                      class="absolute inset-0 w-full h-full object-cover"
-                    />
+                    <img src={firstItem.photo_url} alt="" class="absolute inset-0 w-full h-full object-cover" />
                   {:else}
-                    <div
-                      class="absolute inset-0"
-                      style="background-color: {firstItem?.selected_color || '#f9a8d4'}"
-                    ></div>
+                    <div class="absolute inset-0" style="background-color: {firstItem?.selected_color || '#f9a8d4'}"></div>
                   {/if}
-                  <!-- Dusty pink overlay -->
-                  <div class="absolute inset-0" style="background: rgba(249, 168, 212, 0.45)"></div>
-                  <!-- Day number -->
-                  <span class="absolute top-1.5 left-0 right-0 text-center text-[11px] font-black text-white drop-shadow z-10">
+                  <div class="absolute inset-0" style="background: rgba(249,168,212,0.4)"></div>
+                  <span class="absolute top-1 left-0 right-0 text-center text-[10px] font-black text-white drop-shadow-sm z-10">
                     {dayNum(dateStr)}
                   </span>
-                  <!-- Mini item strip at bottom -->
                   <div class="absolute bottom-0 left-0 right-0 flex z-10">
-                    {#each (entry.outfits?.item_list || []).slice(0, 3) as item}
-                      <div class="flex-1 h-5 overflow-hidden">
+                    {#each (entry.outfits?.item_list || []).slice(0, 4) as item}
+                      <div class="flex-1 h-6 overflow-hidden">
                         {#if item.photo_url}
                           <img src={item.photo_url} alt="" class="w-full h-full object-cover" />
                         {:else}
@@ -264,11 +276,18 @@
                       </div>
                     {/each}
                   </div>
+                  {#if entry.is_worn}
+                    <div class="absolute top-1 right-1 z-20">
+                      <span class="text-[8px] font-black bg-white/90 text-emerald-600 px-1 rounded-full leading-4">✓</span>
+                    </div>
+                  {/if}
                 {:else}
-                  <!-- Empty day -->
-                  <span class="text-[11px] font-bold {isToday ? 'text-[#2D60FF]' : 'text-gray-400'} absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                  <span class="text-[11px] font-semibold {isToday ? 'text-pink-500' : 'text-gray-300'} absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                     {dayNum(dateStr)}
                   </span>
+                  {#if isToday}
+                    <span class="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-pink-500"></span>
+                  {/if}
                 {/if}
               </button>
             {/if}
@@ -276,28 +295,25 @@
         </div>
       </div>
 
-      
       {#if sortedEntries.length > 0}
-        <div class="mt-6 space-y-3">
-          <p class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Planned This Month</p>
+        <div class="mt-5 space-y-2.5">
+          <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1 mb-3">Planned This Month</p>
           {#each sortedEntries as [dateStr, entry]}
-            {@const firstItem = entry.outfits?.item_list?.[0]}
+            {@const items = entry.outfits?.item_list || []}
             <button
               on:click={() => openDay(dateStr)}
-              class="w-full rounded-[20px] overflow-hidden shadow-sm flex items-stretch hover:shadow-md transition-all text-left"
-              style="background: rgba(249, 168, 212, 0.15); border: 1px solid rgba(249, 168, 212, 0.4)"
+              class="w-full bg-white rounded-[20px] shadow-sm border border-gray-100 flex items-center gap-0 overflow-hidden hover:shadow-md transition-all text-left active:scale-[0.99]"
             >
-              <!-- Date badge -->
-              <div class="flex flex-col items-center justify-center px-4 py-3 flex-shrink-0"
-                style="background: rgba(249, 168, 212, 0.3)">
-                <p class="text-2xl font-black text-gray-800">{dayNum(dateStr)}</p>
-                <p class="text-[10px] text-pink-400 font-black uppercase tracking-wide">{formatDateShort(dateStr)}</p>
+              <div class="flex flex-col items-center justify-center w-16 py-4 flex-shrink-0 self-stretch"
+                style="background: linear-gradient(135deg, rgba(249,168,212,0.25), rgba(249,168,212,0.1))">
+                <p class="text-xl font-black text-gray-800 leading-none">{dayNum(dateStr)}</p>
+                <p class="text-[9px] text-pink-400 font-black uppercase tracking-wider mt-0.5">{formatDateShort(dateStr)}</p>
               </div>
 
-              <!-- Item thumbnails -->
-              <div class="flex gap-2 p-3 flex-shrink-0 items-center">
-                {#each (entry.outfits?.item_list || []).slice(0, 3) as item}
-                  <div class="w-10 h-10 rounded-xl overflow-hidden bg-white/60 flex-shrink-0">
+              <div class="flex items-center px-3 gap-1.5 flex-shrink-0">
+                {#each items.slice(0, 3) as item, idx}
+                  <div class="rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 border-2 border-white shadow-sm"
+                    style="width:36px; height:36px; margin-left: {idx > 0 ? '-10px' : '0'}; z-index: {3 - idx}; position: relative">
                     {#if item.photo_url}
                       <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
                     {:else}
@@ -305,26 +321,39 @@
                     {/if}
                   </div>
                 {/each}
+                {#if items.length > 3}
+                  <span class="text-[10px] font-black text-gray-400 ml-1">+{items.length - 3}</span>
+                {/if}
               </div>
 
-              <!-- Name -->
-              <div class="flex-1 min-w-0 flex flex-col justify-center py-3 pr-4">
-                <p class="font-black text-gray-900 truncate">{entry.outfits?.name || 'Outfit'}</p>
-                <p class="text-xs text-pink-400 font-bold mt-0.5">{entry.outfits?.item_list?.length || 0} items</p>
+              <div class="flex-1 min-w-0 py-4 pr-3">
+                <p class="font-black text-gray-900 text-sm truncate">{entry.outfits?.name || 'Outfit'}</p>
+                <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <p class="text-[11px] text-gray-400">{items.length} items</p>
+                  {#if entry.is_worn}
+                    <span class="text-[10px] font-black text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full">Worn</span>
+                  {:else}
+                    {@const dirty = getDirtyItems(items)}
+                    {#if dirty.length > 0}
+                      <span class="text-[10px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">⚠️ {dirty.length} dirty</span>
+                    {/if}
+                  {/if}
+                </div>
               </div>
 
-              <div class="flex items-center pr-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-pink-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              <div class="pr-4 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
                 </svg>
               </div>
             </button>
           {/each}
         </div>
       {:else}
-        <div class="mt-6 bg-white rounded-[20px] p-8 text-center shadow-sm border border-gray-50">
-          <p class="text-gray-400 font-medium">No outfits planned this month.</p>
-          <p class="text-gray-300 text-sm mt-1">Tap a day on the calendar to assign an outfit.</p>
+        <div class="mt-5 bg-white rounded-[20px] p-10 text-center shadow-sm border border-gray-100">
+          <p class="text-2xl mb-3">🗓️</p>
+          <p class="text-gray-600 font-bold">Nothing planned yet</p>
+          <p class="text-gray-400 text-sm mt-1">Tap a day to assign an outfit.</p>
         </div>
       {/if}
 
@@ -377,29 +406,41 @@
         <div class="space-y-3">
           {#each outfits as outfit}
             {@const isAssigned = entries[selectedDate]?.outfit_id === outfit.id}
+            {@const dirtyInOutfit = getDirtyItems(outfit.item_list || [])}
             <button
               on:click={() => assignOutfit(outfit)}
               disabled={saving || entries[selectedDate]?.is_worn}
               class="w-full flex items-center gap-4 p-4 rounded-[20px] border-2 transition-all text-left disabled:opacity-50
-                {isAssigned ? 'border-blue-500 bg-blue-50' : 'border-gray-100 hover:border-gray-200 bg-white'}"
+                {isAssigned ? 'border-pink-400 bg-pink-50' : 'border-gray-100 hover:border-gray-200 bg-white'}"
             >
               <div class="flex gap-1.5 flex-shrink-0">
                 {#each (outfit.item_list || []).slice(0, 3) as item}
-                  <div class="w-10 h-10 rounded-xl overflow-hidden bg-gray-100">
+                  <div class="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 relative">
                     {#if item.photo_url}
                       <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
                     {:else}
                       <div class="w-full h-full" style="background-color: {item.selected_color || '#e5e7eb'}"></div>
+                    {/if}
+                    {#if itemStatusMap[item.id] && itemStatusMap[item.id] !== 'Clean'}
+                      <div class="absolute inset-0 bg-amber-400/30 flex items-center justify-center">
+                        <span class="text-[10px]">⚠️</span>
+                      </div>
                     {/if}
                   </div>
                 {/each}
               </div>
               <div class="flex-1 min-w-0">
                 <p class="font-bold text-gray-900 truncate">{outfit.name}</p>
-                <p class="text-xs text-gray-400">{outfit.item_list?.length || 0} items</p>
+                {#if dirtyInOutfit.length > 0}
+                  <p class="text-xs text-amber-600 font-semibold mt-0.5">
+                    ⚠️ {dirtyInOutfit.map(i => i.name).join(', ')} {dirtyInOutfit.length === 1 ? dirtyLabel(itemStatusMap[dirtyInOutfit[0].id]) : 'need attention'}
+                  </p>
+                {:else}
+                  <p class="text-xs text-gray-400">{outfit.item_list?.length || 0} items · All clean</p>
+                {/if}
               </div>
               {#if isAssigned}
-                <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                <div class="w-6 h-6 rounded-full bg-pink-500 flex items-center justify-center flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                   </svg>
@@ -422,7 +463,6 @@
   </div>
 {/if}
 
-<!-- Laundry modal -->
 {#if showLaundryModal && selectedDate}
   <div
     class="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-end justify-center"
@@ -471,7 +511,7 @@
       <button
         on:click={confirmWorn}
         disabled={markingWorn}
-        class="w-full mt-6 bg-[#2D60FF] text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-blue-100 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50"
+        class="w-full mt-6 bg-pink-500 text-white py-4 rounded-2xl font-black text-base shadow-lg shadow-pink-100 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50"
       >
         {markingWorn ? 'Saving...' : 'Done'}
       </button>

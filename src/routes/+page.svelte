@@ -12,10 +12,7 @@
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       userName = user.email?.split('@')[0] || 'there';
-      const { data } = await supabase
-        .from('items')
-        .select('status')
-        .eq('user_id', user.id);
+      const { data } = await supabase.from('items').select('status').eq('user_id', user.id);
       if (data) {
         totalItems = data.length;
         cleanItems = data.filter(i => i.status === 'Clean').length;
@@ -26,48 +23,48 @@
   });
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] pb-24 p-8 font-sans">
-  <div class="max-w-4xl mx-auto">
+<div class="min-h-screen bg-[#FFF5F9] pb-24 px-4 pt-6 font-sans">
+  <div class="max-w-lg mx-auto">
 
-    <header class="mb-12">
-      <p class="text-gray-400 font-medium text-sm uppercase tracking-widest mb-1">Welcome back</p>
-      <h1 class="text-5xl font-black text-[#1A1C1E] tracking-tight">
+    <header class="mb-7">
+      <p class="text-gray-400 font-medium text-xs uppercase tracking-widest mb-1">Welcome back</p>
+      <h1 class="text-4xl font-black text-[#1A1C1E] tracking-tight">
         {#if loading}...{:else}Hey, {userName} 👋{/if}
       </h1>
     </header>
 
-    <div class="grid grid-cols-3 gap-6 mb-12">
-      <div class="bg-white rounded-[24px] p-6 shadow-sm border border-gray-50">
-        <p class="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Total Items</p>
-        <p class="text-4xl font-black text-[#1A1C1E]">{totalItems}</p>
+    <div class="grid grid-cols-3 gap-3 mb-6">
+      <div class="bg-white rounded-[20px] p-4 shadow-sm border border-pink-50">
+        <p class="text-[10px] font-black uppercase tracking-tight text-gray-400 mb-1.5">Total</p>
+        <p class="text-3xl font-black text-[#1A1C1E]">{totalItems}</p>
       </div>
-      <div class="bg-white rounded-[24px] p-6 shadow-sm border border-gray-50">
-        <p class="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Clean</p>
-        <p class="text-4xl font-black text-green-500">{cleanItems}</p>
+      <div class="bg-white rounded-[20px] p-4 shadow-sm border border-pink-50">
+        <p class="text-[10px] font-black uppercase tracking-tight text-gray-400 mb-1.5">Clean</p>
+        <p class="text-3xl font-black text-green-500">{cleanItems}</p>
       </div>
-      <div class="bg-white rounded-[24px] p-6 shadow-sm border border-gray-50">
-        <p class="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">In Laundry</p>
-        <p class="text-4xl font-black text-red-400">{dirtyItems}</p>
+      <div class="bg-white rounded-[20px] p-4 shadow-sm border border-pink-50">
+        <p class="text-[10px] font-black uppercase tracking-tight text-gray-400 mb-1.5">Laundry</p>
+        <p class="text-3xl font-black text-red-400">{dirtyItems}</p>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-6">
-      <a href="/suggest" class="group bg-[#2D60FF] text-white rounded-[28px] p-8 shadow-lg shadow-blue-100 hover:bg-[#1E4AD9] transition-all transform hover:-translate-y-1">
-        <div class="text-3xl mb-4">✨</div>
-        <h2 class="text-2xl font-black mb-1">Generate an Outfit for MEEEE, Let's GO!</h2>
-        <p class="text-blue-200 text-sm">Let the algorithm pick the best outfit based on weather, color and your wardrobe</p>
+    <div class="flex flex-col gap-4">
+      <a href="/suggest" class="rounded-[24px] p-6 transition-all active:scale-95" style="background: linear-gradient(135deg, #f472b6, #ec4899); box-shadow: 0 8px 24px rgba(236,72,153,0.3);">
+        <div class="text-3xl mb-3">✨</div>
+        <h2 class="text-xl font-black mb-1 text-white">Generate an Outfit for MEEEE, Let's GO!</h2>
+        <p class="text-pink-100 text-sm">Let the algorithm pick the best outfit based on weather, color and your wardrobe</p>
       </a>
 
-      <div class="grid grid-cols-2 gap-6">
-        <a href="/wardrobe" class="group bg-white text-[#1A1C1E] rounded-[28px] p-8 shadow-sm border border-gray-100 hover:shadow-xl transition-all transform hover:-translate-y-1">
-          <div class="text-3xl mb-4">👔</div>
-          <h2 class="text-2xl font-black mb-1">My Wardrobe</h2>
-          <p class="text-gray-400 text-sm">Manage your clothes</p>
+      <div class="grid grid-cols-2 gap-4">
+        <a href="/wardrobe" class="bg-white text-[#1A1C1E] rounded-[24px] p-5 shadow-sm border border-pink-50 active:scale-95 transition-all">
+          <div class="text-3xl mb-3">👔</div>
+          <h2 class="text-lg font-black mb-1">My Wardrobe</h2>
+          <p class="text-gray-400 text-xs">Manage your clothes</p>
         </a>
-        <a href="/outfits" class="group bg-white text-[#1A1C1E] rounded-[28px] p-8 shadow-sm border border-gray-100 hover:shadow-xl transition-all transform hover:-translate-y-1">
-          <div class="text-3xl mb-4">👗</div>
-          <h2 class="text-2xl font-black mb-1">My Outfits</h2>
-          <p class="text-gray-400 text-sm">Your saved combinations</p>
+        <a href="/outfits" class="bg-white text-[#1A1C1E] rounded-[24px] p-5 shadow-sm border border-pink-50 active:scale-95 transition-all">
+          <div class="text-3xl mb-3">👗</div>
+          <h2 class="text-lg font-black mb-1">My Outfits</h2>
+          <p class="text-gray-400 text-xs">Your saved combinations</p>
         </a>
       </div>
     </div>

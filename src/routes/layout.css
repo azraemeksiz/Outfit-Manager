@@ -1,2 +1,13 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}

@@ -58,12 +58,10 @@ async function handleFileSelect(event: Event) {
             const alpha = imageData[i + 3];
             if (alpha < 128) continue;
 
-            // Rengi 32'ye yuvarla — benzer renkleri grupla
             const r = Math.round(imageData[i] / 32) * 32;
             const g = Math.round(imageData[i + 1] / 32) * 32;
             const b = Math.round(imageData[i + 2] / 32) * 32;
 
-            // Beyaz ve siyahı atla
             if (r > 220 && g > 220 && b > 220) continue;
             if (r < 30 && g < 30 && b < 30) continue;
 
@@ -148,10 +146,10 @@ async function handleFileSelect(event: Event) {
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] pb-24 p-6 flex items-center justify-center font-sans">
-  <div class="bg-white w-full max-w-xl rounded-[32px] shadow-sm border border-gray-100 p-8 md:p-12">
+<div class="min-h-screen bg-[#FFF5F9] pb-24 p-6 font-sans">
+  <div class="bg-white w-full max-w-xl mx-auto rounded-[32px] shadow-sm border border-gray-100 p-8 md:p-12">
     <header class="mb-10">
-      <a href="/wardrobe" class="text-blue-600 font-bold text-sm hover:opacity-80 transition">← Back to Wardrobe</a>
+      <a href="/wardrobe" class="text-pink-500 font-bold text-sm hover:opacity-80 transition">← Back to Wardrobe</a>
       <h1 class="text-4xl font-black text-gray-900 mt-4 tracking-tight">Add New Item</h1>
       <p class="text-gray-400 mt-2 text-lg">Bring a new piece into your digital closet.</p>
     </header>
@@ -170,7 +168,7 @@ async function handleFileSelect(event: Event) {
               </div>
             </div>
           {:else}
-            <div class="w-full aspect-square rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center hover:border-blue-400 hover:bg-blue-50 transition-all">
+            <div class="w-full aspect-square rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center hover:border-pink-300 hover:bg-pink-50 transition-all">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -184,12 +182,12 @@ async function handleFileSelect(event: Event) {
       <div class="space-y-2">
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Item Name</label>
         <input bind:value={name} type="text" placeholder="e.g. Vintage Denim Jacket" required
-          class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none placeholder:text-gray-300" />
+          class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-pink-300 outline-none placeholder:text-gray-300" />
       </div>
 
       <div class="space-y-2">
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Category</label>
-        <select bind:value={category} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+        <select bind:value={category} class="w-full bg-gray-50 border-none rounded-2xl p-4 focus:ring-2 focus:ring-pink-300 outline-none cursor-pointer">
           <option value="top">Top</option>
           <option value="bottom">Bottom</option>
           <option value="dress">Dress</option>
@@ -206,7 +204,7 @@ async function handleFileSelect(event: Event) {
             <button
               type="button"
               on:click={() => toggleSeason(s)}
-              class="py-3 rounded-2xl font-bold text-sm transition-all {seasons.includes(s) ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+              class="py-3 rounded-2xl font-bold text-sm transition-all {seasons.includes(s) ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
             >
               {s === 'all-season' ? 'All Season' : s === 'spring-fall' ? 'Spring/Fall' : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
@@ -221,7 +219,7 @@ async function handleFileSelect(event: Event) {
             <button
               type="button"
               on:click={() => toggleOccasion(o)}
-              class="py-3 rounded-2xl font-bold text-sm transition-all {occasions.includes(o) ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+              class="py-3 rounded-2xl font-bold text-sm transition-all {occasions.includes(o) ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
             >
               {o}
             </button>
@@ -233,7 +231,7 @@ async function handleFileSelect(event: Event) {
         <div class="flex items-center justify-between ml-1 mb-1">
           <label class="text-xs font-black uppercase tracking-widest text-gray-400">Color</label>
           {#if colorDetected}
-            <span class="text-xs font-bold text-green-500">Auto-detected from photo</span>
+            <span class="text-xs font-bold text-green-500">Auto-detected ✓</span>
           {/if}
         </div>
         <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
@@ -252,7 +250,7 @@ async function handleFileSelect(event: Event) {
         <button
           type="button"
           on:click={() => is_patterned = !is_patterned}
-          class="w-full bg-gray-50 rounded-2xl p-4 font-bold text-sm transition-all {is_patterned ? 'text-blue-600 ring-2 ring-blue-500' : 'text-gray-400'}"
+          class="w-full bg-gray-50 rounded-2xl p-4 font-bold text-sm transition-all {is_patterned ? 'text-pink-500 ring-2 ring-pink-400' : 'text-gray-400'}"
         >
           {is_patterned ? '✓ Patterned' : 'Solid'}
         </button>
@@ -265,7 +263,8 @@ async function handleFileSelect(event: Event) {
       {/if}
 
       <button type="submit" disabled={loading}
-        class="w-full bg-[#2D60FF] text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-100 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50">
+        class="w-full text-white py-5 rounded-2xl font-black text-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+        style="background: linear-gradient(135deg, #f472b6, #ec4899); box-shadow: 0 8px 24px rgba(236,72,153,0.3);">
         {#if uploading}
           UPLOADING PHOTO...
         {:else if loading}

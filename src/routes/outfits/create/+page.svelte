@@ -157,11 +157,11 @@
   }
 </script>
 
-<div class="min-h-screen bg-[#F8F9FB] pb-28 font-sans">
+<div class="min-h-screen bg-[#FFF5F9] pb-28 font-sans">
   <div class="max-w-4xl mx-auto p-6">
 
     <header class="mb-6">
-      <a href="/outfits" class="text-blue-600 font-bold text-sm hover:opacity-80 transition">← Back</a>
+      <a href="/outfits" class="text-pink-500 font-bold text-sm hover:opacity-80 transition">← Back</a>
       <h1 class="text-4xl font-black text-gray-900 mt-3 tracking-tight">Create Outfit</h1>
       <p class="text-gray-400 mt-1 text-sm">Drag items into the slots or tap to select.</p>
     </header>
@@ -172,7 +172,7 @@
         bind:value={outfitName}
         type="text"
         placeholder="Outfit name — e.g. Monday Casual"
-        class="w-full bg-gray-50 rounded-2xl px-5 py-4 font-bold text-gray-900 placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 border-none text-lg"
+        class="w-full bg-gray-50 rounded-2xl px-5 py-4 font-bold text-gray-900 placeholder:text-gray-300 outline-none focus:ring-2 focus:ring-pink-300 border-none text-lg"
       />
     </div>
 
@@ -191,7 +191,7 @@
             on:dragleave={handleSlotDragLeave}
             on:drop={(e) => handleSlotDrop(e, cat)}
             class="relative aspect-square rounded-2xl border-2 transition-all flex flex-col items-center justify-center overflow-hidden
-              {item ? 'border-transparent' : isOver && compatible ? 'border-blue-400 bg-blue-50' : 'border-dashed border-gray-200 hover:border-gray-300'}"
+              {item ? 'border-transparent' : isOver && compatible ? 'border-pink-300 bg-pink-50' : 'border-dashed border-gray-200 hover:border-gray-300'}"
           >
             {#if item}
               <!-- Filled slot -->
@@ -215,7 +215,7 @@
               <span class="text-2xl mb-1 opacity-40">{SLOT_ICONS[cat]}</span>
               <span class="text-[9px] font-black uppercase tracking-wide text-gray-400">{SLOT_LABELS[cat]}</span>
               {#if isOver && compatible}
-                <span class="text-[8px] text-blue-500 font-bold mt-0.5">Drop here</span>
+                <span class="text-[8px] text-pink-400 font-bold mt-0.5">Drop here</span>
               {/if}
             {/if}
           </div>
@@ -270,7 +270,7 @@
               tabindex="0"
               on:keydown={(e) => e.key === 'Enter' && !disabled && clickItem(item)}
               class="relative aspect-square rounded-2xl overflow-hidden cursor-pointer transition-all select-none
-                {selected ? 'ring-2 ring-blue-500 scale-95' : ''}
+                {selected ? 'ring-2 ring-pink-400 scale-95' : ''}
                 {disabled ? 'opacity-25 cursor-not-allowed' : 'hover:scale-95 active:scale-90'}"
             >
               {#if item.photo_url}
@@ -288,7 +288,7 @@
 
               <!-- Selected checkmark -->
               {#if selected}
-                <div class="absolute top-1.5 right-1.5 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                <div class="absolute top-1.5 right-1.5 w-5 h-5 bg-pink-500 rounded-full flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                   </svg>
@@ -320,7 +320,8 @@
     <button
       on:click={saveOutfit}
       disabled={saving || selectedCount === 0}
-      class="w-full mt-5 bg-[#2D60FF] text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-100 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-40"
+      class="w-full mt-5 text-white py-5 rounded-2xl font-black text-lg hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-40"
+      style="background: linear-gradient(135deg, #f472b6, #ec4899); box-shadow: 0 8px 24px rgba(236,72,153,0.3);"
     >
       {saving ? 'SAVING...' : `SAVE OUTFIT${selectedCount > 0 ? ` (${selectedCount} items)` : ''}`}
     </button>
