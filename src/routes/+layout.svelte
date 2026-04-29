@@ -23,7 +23,13 @@
   const showNav = $derived(!hideNavRoutes.includes($page.url.pathname));
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<svelte:head>
+  <link rel="icon" href={favicon} />
+  <title>Outfit Manager</title>
+  <meta name="description" content="Smart outfit suggestions based on weather, color theory, and your personal style." />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ec4899" />
+</svelte:head>
 
 {@render children()}
 

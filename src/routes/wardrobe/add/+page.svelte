@@ -17,6 +17,7 @@
   let loading = false;
   let message = '';
   let colorDetected = false;
+  let detectedColors: string[] = [];
 
   function toggleSeason(s: string) {
     if (seasons.includes(s)) {
@@ -45,34 +46,73 @@ async function handleFileSelect(event: Event) {
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
-          canvas.width = 100;
-          canvas.height = 100;
+          const size = 200;
+          canvas.width = size;
+          canvas.height = size;
           const ctx = canvas.getContext('2d');
           if (!ctx) return;
-          ctx.drawImage(img, 0, 0, 100, 100);
-          const imageData = ctx.getImageData(0, 0, 100, 100).data;
+          ctx.drawImage(img, 0, 0, size, size);
 
+          const fullData = ctx.getImageData(0, 0, size, size).data;
+
+          // Detect background color from image corners
+          const cs = 8;
+          let bgR = 0, bgG = 0, bgB = 0, bgN = 0;
+          [[0, 0], [size - cs, 0], [0, size - cs], [size - cs, size - cs]].forEach(([sx, sy]) => {
+            for (let y = sy; y < sy + cs; y++) {
+              for (let x = sx; x < sx + cs; x++) {
+                const i = (y * size + x) * 4;
+                if (fullData[i + 3] < 128) continue;
+                bgR += fullData[i]; bgG += fullData[i + 1]; bgB += fullData[i + 2]; bgN++;
+              }
+            }
+          });
+          if (bgN > 0) { bgR /= bgN; bgG /= bgN; bgB /= bgN; }
+
+          const margin = Math.floor(size * 0.2);
           const colorMap: Record<string, number> = {};
 
-          for (let i = 0; i < imageData.length; i += 4) {
-            const alpha = imageData[i + 3];
-            if (alpha < 128) continue;
+          for (let y = margin; y < size - margin; y++) {
+            for (let x = margin; x < size - margin; x++) {
+              const i = (y * size + x) * 4;
+              if (fullData[i + 3] < 128) continue;
 
-            const r = Math.round(imageData[i] / 32) * 32;
-            const g = Math.round(imageData[i + 1] / 32) * 32;
-            const b = Math.round(imageData[i + 2] / 32) * 32;
+              const r = fullData[i], g = fullData[i + 1], b = fullData[i + 2];
 
-            if (r > 220 && g > 220 && b > 220) continue;
-            if (r < 30 && g < 30 && b < 30) continue;
+              // Skip near-white and near-black
+              if (r > 230 && g > 230 && b > 230) continue;
+              if (r < 30 && g < 30 && b < 30) continue;
 
-            const key = `${r},${g},${b}`;
-            colorMap[key] = (colorMap[key] || 0) + 1;
+              // Skip pixels similar to detected background color
+              const dR = r - bgR, dG = g - bgG, dB = b - bgB;
+              if (Math.sqrt(dR * dR + dG * dG + dB * dB) < 35) continue;
+
+              // HSL saturation check — filters grays and near-neutrals
+              const rN = r / 255, gN = g / 255, bN = b / 255;
+              const maxC = Math.max(rN, gN, bN), minC = Math.min(rN, gN, bN);
+              const lightness = (maxC + minC) / 2;
+              const chroma = maxC - minC;
+              const saturation = chroma === 0 ? 0 : chroma / (1 - Math.abs(2 * lightness - 1));
+              if (saturation < 0.2) continue;
+
+              // Use Math.floor to guarantee quantized values stay ≤ 224 (avoids 256 → invalid hex bug)
+              const step = 32;
+              const rQ = Math.floor(r / step) * step;
+              const gQ = Math.floor(g / step) * step;
+              const bQ = Math.floor(b / step) * step;
+
+              const key = `${rQ},${gQ},${bQ}`;
+              colorMap[key] = (colorMap[key] || 0) + 1;
+            }
           }
 
-          const dominant = Object.entries(colorMap).sort((a, b) => b[1] - a[1])[0];
-          if (dominant) {
-            const [r, g, b] = dominant[0].split(',').map(Number);
-            color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+          const top3 = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
+          detectedColors = top3.map(([key]) => {
+            const [r, g, b] = key.split(',').map(Number);
+            return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+          });
+          if (detectedColors.length > 0) {
+            color = detectedColors[0];
             colorDetected = true;
           }
         } catch (e) {
@@ -129,6 +169,7 @@ async function handleFileSelect(event: Event) {
       name,
       category,
       selected_color: color,
+      colors: detectedColors.length > 0 ? detectedColors : null,
       seasons,
       occasions,
       is_patterned,
@@ -236,10 +277,19 @@ async function handleFileSelect(event: Event) {
         </div>
         <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
           <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
-          <div>
+          <div class="flex-1">
             <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
-            {#if colorDetected}
-              <p class="text-xs text-gray-400 mt-0.5">You can override this manually</p>
+            {#if detectedColors.length > 1}
+              <div class="flex gap-2 mt-2">
+                {#each detectedColors as c}
+                  <button
+                    type="button"
+                    on:click={() => color = c}
+                    class="w-7 h-7 rounded-full border-2 transition-all {color === c ? 'border-pink-500 scale-110' : 'border-white shadow-sm'}"
+                    style="background-color: {c}"
+                  />
+                {/each}
+              </div>
             {/if}
           </div>
         </div>

@@ -169,12 +169,10 @@
     return [h * 360, s * 100, l * 100];
   }
 
-  function scoreColorNorm(item1: any, item2: any): number {
-    if (!item1?.selected_color || !item2?.selected_color) return 0.5;
-    if (item1.is_patterned || item2.is_patterned) return 0.5;
+  function compareHexColors(hex1: string, hex2: string): number {
     try {
-      const [h1, s1, l1] = hexToHsl(item1.selected_color);
-      const [h2, s2, l2] = hexToHsl(item2.selected_color);
+      const [h1, s1, l1] = hexToHsl(hex1);
+      const [h2, s2, l2] = hexToHsl(hex2);
       const isNeutral = (s: number, l: number) => s < 15 || l < 15 || l > 85;
       if (isNeutral(s1, l1) || isNeutral(s2, l2)) return 0.7;
       const diff = Math.abs(h1 - h2);
@@ -186,6 +184,20 @@
       if (hueDiff >= 15 && hueDiff <= 45 && s1 > 40 && s2 > 40) return 0.1;
       return 0.5;
     } catch { return 0.5; }
+  }
+
+  function scoreColorNorm(item1: any, item2: any): number {
+    const colors1: string[] = item1?.colors?.length ? item1.colors : (item1?.selected_color ? [item1.selected_color] : []);
+    const colors2: string[] = item2?.colors?.length ? item2.colors : (item2?.selected_color ? [item2.selected_color] : []);
+    if (!colors1.length || !colors2.length) return 0.5;
+    let best = 0;
+    for (const c1 of colors1) {
+      for (const c2 of colors2) {
+        const s = compareHexColors(c1, c2);
+        if (s > best) best = s;
+      }
+    }
+    return best;
   }
 
   function scorePatternNorm(item1: any, item2: any): number {
@@ -338,10 +350,12 @@
 
     for (const top of tops) {
       for (const bottom of bottoms) {
-        const bestOuterwear = outerwear.length
+        const bestOuterwearCandidate = outerwear.length
           ? outerwear.reduce((best: any, ow: any) =>
               scoreWeatherNorm(ow) >= scoreWeatherNorm(best) ? ow : best)
           : null;
+        const bestOuterwear = bestOuterwearCandidate && (temperature === null || temperature < heatThreshold)
+          ? bestOuterwearCandidate : null;
         const bestShoes = shoes.length
           ? shoes.reduce((best: any, sh: any) =>
               scoreWeatherNorm(sh) >= scoreWeatherNorm(best) ? sh : best)
@@ -403,7 +417,9 @@
       .reduce((unique: any[], combo) => {
         if (unique.length >= 3) return unique;
         const bottomId = combo.items.find((i: any) => i.category === 'bottom' || i.category === 'dress')?.id;
+        const topId = combo.items.find((i: any) => i.category === 'top')?.id;
         if (unique.some(c => c.items.find((i: any) => i.category === 'bottom' || i.category === 'dress')?.id === bottomId)) return unique;
+        if (topId && unique.some(c => c.items.find((i: any) => i.category === 'top')?.id === topId)) return unique;
         unique.push(combo);
         return unique;
       }, []);

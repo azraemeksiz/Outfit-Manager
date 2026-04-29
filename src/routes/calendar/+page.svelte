@@ -378,7 +378,8 @@
         <div class="flex items-center gap-3">
           {#if entries[selectedDate]?.is_worn}
             <span class="text-xs font-black text-green-500 bg-green-50 px-3 py-1 rounded-full">Worn ✓</span>
-          {:else if entries[selectedDate]}
+          {/if}
+          {#if entries[selectedDate]}
             <button
               on:click={removeEntry}
               class="text-red-400 hover:text-red-600 text-sm font-bold transition-colors"
