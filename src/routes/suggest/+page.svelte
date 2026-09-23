@@ -1,10 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { buildUserStyleProfile, filterItems, generateOutfitCombinations } from '$lib/recommender';
+  import type { RecommenderContext } from '$lib/recommender';
+  import type { CalendarEntry, Item, Suggestion, UserStyleProfile } from '$lib/types';
 
-  let items: any[] = [];
-  let wornHistory: any[] = [];
-  let userProfile: { patternAffinity: number; colorAffinities: string[] } = {
+  let items: Item[] = [];
+  let wornHistory: CalendarEntry[] = [];
+  let userProfile: UserStyleProfile = {
     patternAffinity: 0.5,
     colorAffinities: []
   };
@@ -13,14 +16,14 @@
   let weatherLoading = false;
   let temperature: number | null = null;
   let weatherError = '';
-  let suggestions: any[] = [];
+  let suggestions: Suggestion[] = [];
   let generated = false;
   let coldThreshold = 15;
   let heatThreshold = 25;
   let locationAsked = false;
 
   let showCalendarModal = false;
-  let activeCalendarSuggestion: any = null;
+  let activeCalendarSuggestion: Suggestion | null = null;
   let calendarDate = '';
   let savingToCalendar = false;
   let calendarSavedIndex: number | null = null;
@@ -94,336 +97,13 @@
         .eq('is_worn', true)
         .gte('date', sixMonthsAgo.toISOString().split('T')[0]);
       if (histData) {
-        wornHistory = histData;
-        userProfile = buildUserStyleProfile(histData);
+        // supabase infers outfits as an array, but the many-to-one join returns a single object
+        wornHistory = histData as unknown as CalendarEntry[];
+        userProfile = buildUserStyleProfile(wornHistory);
       }
     }
     requestLocation();
   });
-
-  function buildUserStyleProfile(history: any[]) {
-    const allItems = history.flatMap((e: any) => e.outfits?.item_list || []);
-    if (!allItems.length) return { patternAffinity: 0.5, colorAffinities: [] as string[] };
-    const patternCount = allItems.filter((i: any) => i.is_patterned).length;
-    const colorMap: Record<string, number> = {};
-    for (const item of allItems) {
-      if (item.selected_color) colorMap[item.selected_color] = (colorMap[item.selected_color] || 0) + 1;
-    }
-    const colorAffinities = Object.entries(colorMap)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([color]) => color);
-    return { patternAffinity: patternCount / allItems.length, colorAffinities };
-  }
-
-  function filterItems(allItems: any[]): any[] {
-    return allItems.filter(item => {
-      if (occasion && item.occasions && item.occasions.length > 0) {
-        if (!item.occasions.includes(occasion)) return false;
-      }
-      return true;
-    });
-  }
-
-  function scoreWeatherNorm(item: any): number {
-    if (occasion === 'Indoor') return 0.5;
-    if (temperature === null) return 0.5;
-    const seasons = item.seasons || [];
-    if (seasons.length === 0 || seasons.includes('all-season')) return 0.7;
-    const hot = temperature > heatThreshold;
-    const cold = temperature < coldThreshold;
-    const hasSummer = seasons.includes('summer');
-    const hasWinter = seasons.includes('winter');
-    const hasSpringFall = seasons.includes('spring-fall');
-    if (hot) {
-      if (hasSummer) return 1.0;
-      if (hasSpringFall) return 0.6;
-      if (hasWinter) return 0.0;
-    }
-    if (cold) {
-      if (hasWinter) return 1.0;
-      if (hasSpringFall) return 0.4;
-      if (hasSummer) return 0.0;
-    }
-    if (hasSpringFall) return 1.0;
-    if (hasWinter || hasSummer) return 0.7;
-    return 0.5;
-  }
-
-  function hexToHsl(hex: string): [number, number, number] {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h = 0, s = 0;
-    const l = (max + min) / 2;
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-        case g: h = ((b - r) / d + 2) / 6; break;
-        case b: h = ((r - g) / d + 4) / 6; break;
-      }
-    }
-    return [h * 360, s * 100, l * 100];
-  }
-
-  function compareHexColors(hex1: string, hex2: string): number {
-    try {
-      const [h1, s1, l1] = hexToHsl(hex1);
-      const [h2, s2, l2] = hexToHsl(hex2);
-      const isNeutral = (s: number, l: number) => s < 15 || l < 15 || l > 85;
-      if (isNeutral(s1, l1) || isNeutral(s2, l2)) return 0.7;
-      const diff = Math.abs(h1 - h2);
-      const hueDiff = Math.min(diff, 360 - diff);
-      if (hueDiff >= 150 && hueDiff <= 210) return 1.0;
-      if (hueDiff <= 15 && Math.abs(s1 - s2) < 20) return 0.85;
-      if (hueDiff >= 110 && hueDiff <= 130) return 0.75;
-      if (hueDiff > 45 && hueDiff <= 60) return 0.65;
-      if (hueDiff >= 15 && hueDiff <= 45 && s1 > 40 && s2 > 40) return 0.1;
-      return 0.5;
-    } catch { return 0.5; }
-  }
-
-  function scoreColorNorm(item1: any, item2: any): number {
-    const colors1: string[] = item1?.colors?.length ? item1.colors : (item1?.selected_color ? [item1.selected_color] : []);
-    const colors2: string[] = item2?.colors?.length ? item2.colors : (item2?.selected_color ? [item2.selected_color] : []);
-    if (!colors1.length || !colors2.length) return 0.5;
-    let best = 0;
-    for (const c1 of colors1) {
-      for (const c2 of colors2) {
-        const s = compareHexColors(c1, c2);
-        if (s > best) best = s;
-      }
-    }
-    return best;
-  }
-
-  function scorePatternNorm(item1: any, item2: any): number {
-    if (!item1 || !item2) return 0.75;
-    if (item1.is_patterned && item2.is_patterned)
-      return 0.3 + userProfile.patternAffinity * 0.4;
-    if (item1.is_patterned || item2.is_patterned) return 1.0;
-    return 0.65 + (1 - userProfile.patternAffinity) * 0.2;
-  }
-
-  function scoreColorAffinityBonus(outfitItems: any[]): number {
-    if (!userProfile.colorAffinities.length) return 0;
-    const matches = outfitItems.filter((i: any) => userProfile.colorAffinities.includes(i.selected_color)).length;
-    return Math.min(matches * 0.12, 0.3);
-  }
-
-  function scoreShoeColorNorm(shoes: any, bottom: any, top: any): number {
-    if (!shoes?.selected_color) return 0.6;
-    try {
-      const [, , lSh] = hexToHsl(shoes.selected_color);
-      if (lSh < 15 || lSh > 85) return 0.85;
-      const ref = bottom || top;
-      if (!ref?.selected_color) return 0.6;
-      const [h1, , l1] = hexToHsl(shoes.selected_color);
-      const [h2, , l2] = hexToHsl(ref.selected_color);
-      if (l1 < 15 || l1 > 85 || l2 < 15 || l2 > 85) return 0.8;
-      const hueDiff = Math.min(Math.abs(h1 - h2), 360 - Math.abs(h1 - h2));
-      if (hueDiff <= 20) return 0.9;
-      if (hueDiff >= 150 && hueDiff <= 210) return 0.8;
-      if (hueDiff > 20 && hueDiff <= 60) return 0.45;
-      return 0.65;
-    } catch { return 0.6; }
-  }
-
-  function scoreAccessoryColorNorm(accessory: any, top: any, bottom: any): { score: number; note: string } {
-    if (!accessory?.selected_color) return { score: 0.6, note: '' };
-    try {
-      const [h, s, l] = hexToHsl(accessory.selected_color);
-      if (s < 20 || l < 15 || l > 85) return { score: 0.75, note: '' };
-      const isSilver = l > 65 && s < 25;
-      const isGold = h >= 35 && h <= 65 && s > 25 && l > 35 && l < 78;
-      const outfitHues = [top, bottom]
-        .filter((i: any) => i?.selected_color)
-        .map((i: any) => hexToHsl(i.selected_color)[0]);
-      if (!outfitHues.length) return { score: 0.7, note: '' };
-      const avgHue = outfitHues.reduce((a: number, b: number) => a + b, 0) / outfitHues.length;
-      const isWarm = avgHue <= 60 || avgHue >= 300;
-      const isCool = avgHue >= 120 && avgHue <= 270;
-      if (isGold && isWarm) return { score: 1.0, note: '✨ Gold match' };
-      if (isSilver && isCool) return { score: 1.0, note: '🪙 Silver match' };
-      if (isGold && isCool) return { score: 0.45, note: '' };
-      if (isSilver && isWarm) return { score: 0.45, note: '' };
-      return { score: 0.7, note: '' };
-    } catch { return { score: 0.6, note: '' }; }
-  }
-
-  function checkCombinationHistory(topId: number, bottomId: number): 'recent_repeat' | 'co_occurrence' | 'none' {
-    if (!wornHistory.length) return 'none';
-    const now = Date.now();
-    const sevenDaysAgo  = now - 7   * 86400000;
-    const sixMonthsAgo  = now - 180 * 86400000;
-    let foundInSixMonths = false;
-
-    for (const entry of wornHistory) {
-      const entryTime = new Date(entry.date + 'T12:00:00').getTime();
-      if (entryTime < sixMonthsAgo) continue;
-      const ids: number[] = (entry.outfits?.item_list || []).map((i: any) => i.id);
-      if (ids.includes(topId) && ids.includes(bottomId)) {
-        if (entryTime >= sevenDaysAgo) return 'recent_repeat';
-        foundInSixMonths = true;
-      }
-    }
-    return foundInSixMonths ? 'co_occurrence' : 'none';
-  }
-
-  function scoreHistoryNorm(item: any): number {
-    const now = new Date();
-    if (item.recent_repeat_date) {
-      const d = (now.getTime() - new Date(item.recent_repeat_date).getTime()) / 86400000;
-      if (d <= 7) return 0.0;
-    }
-    if (item.last_worn_date) {
-      const d = (now.getTime() - new Date(item.last_worn_date).getTime()) / 86400000;
-      if (d <= 7) return 0.1;
-      if (d <= 30) return 1.0;
-      if (d <= 60) return 0.7;
-      return 0.4;
-    }
-    return 0.6;
-  }
-
-  function computeScore(
-    top: any, bottom: any, outerwear: any, shoes: any, accessory: any = null, isDress = false
-  ): { total: number; weather: number; color: number; pattern: number; history: number; combinationStatus: string; accessoryNote: string } {
-    const allItems = [top, bottom, outerwear, shoes, accessory].filter(Boolean);
-    const coreItems = isDress ? [bottom].filter(Boolean) : [top, bottom].filter(Boolean);
-
-    const w = allItems.length
-      ? allItems.reduce((s, item) => s + scoreWeatherNorm(item), 0) / allItems.length
-      : 0.5;
-
-    const affinityBonus = scoreColorAffinityBonus(allItems);
-    const topBottomColor = isDress ? 0.5 : scoreColorNorm(top, bottom);
-    const shoeColor = scoreShoeColorNorm(shoes, bottom, top);
-    const accResult = scoreAccessoryColorNorm(accessory, top, bottom);
-
-    let c: number;
-    if (shoes && accessory) {
-      c = topBottomColor * 0.6 + shoeColor * 0.3 + accResult.score * 0.1;
-    } else if (shoes) {
-      c = topBottomColor * 0.7 + shoeColor * 0.3;
-    } else if (accessory) {
-      c = topBottomColor * 0.9 + accResult.score * 0.1;
-    } else {
-      c = topBottomColor;
-    }
-    c = Math.min(1.0, c + affinityBonus);
-
-    const p = isDress ? 0.75 : scorePatternNorm(top, bottom);
-
-    let h = coreItems.length
-      ? coreItems.reduce((s, item) => s + scoreHistoryNorm(item), 0) / coreItems.length
-      : 0.6;
-
-    let combinationStatus = 'none';
-    if (!isDress && top && bottom) {
-      combinationStatus = checkCombinationHistory(top.id, bottom.id);
-      if (combinationStatus === 'recent_repeat') {
-        h = 0.0;
-      } else if (combinationStatus === 'co_occurrence') {
-        h = Math.min(1.0, h + 0.3);
-      }
-    }
-
-    const weather  = Math.round(w * 40);
-    const color    = Math.round(c * 30);
-    const pattern  = Math.round(p * 15);
-    const history  = Math.round(h * 15);
-    return { total: weather + color + pattern + history, weather, color, pattern, history, combinationStatus, accessoryNote: accResult.note };
-  }
-
-  function generateOutfitCombinations(filtered: any[]): any[] {
-    const tops        = filtered.filter(i => i.category === 'top');
-    const bottoms     = filtered.filter(i => i.category === 'bottom');
-    const dresses     = filtered.filter(i => i.category === 'dress');
-    const outerwear   = filtered.filter(i => i.category === 'outerwear');
-    const shoes       = filtered.filter(i => i.category === 'shoes');
-    const accessories = filtered.filter(i => i.category === 'accessory');
-    const combinations: any[] = [];
-
-    for (const top of tops) {
-      for (const bottom of bottoms) {
-        const bestOuterwearCandidate = outerwear.length
-          ? outerwear.reduce((best: any, ow: any) =>
-              scoreWeatherNorm(ow) >= scoreWeatherNorm(best) ? ow : best)
-          : null;
-        const bestOuterwear = bestOuterwearCandidate && (temperature === null || temperature < heatThreshold)
-          ? bestOuterwearCandidate : null;
-        const bestShoes = shoes.length
-          ? shoes.reduce((best: any, sh: any) =>
-              scoreWeatherNorm(sh) >= scoreWeatherNorm(best) ? sh : best)
-          : null;
-        const bestAccessory = accessories.length
-          ? accessories.reduce((best: any, acc: any) =>
-              scoreAccessoryColorNorm(acc, top, bottom).score >= scoreAccessoryColorNorm(best, top, bottom).score ? acc : best)
-          : null;
-
-        const scoreData = computeScore(top, bottom, bestOuterwear, bestShoes, bestAccessory);
-        if (scoreData.total >= 30) {
-          combinations.push({
-            items: [top, bottom, bestOuterwear, bestShoes, bestAccessory].filter(Boolean),
-            score: scoreData.total,
-            scoreBreakdown: scoreData,
-            type: 'top+bottom'
-          });
-        }
-      }
-    }
-
-    for (const dress of dresses) {
-      const bestOuterwear = outerwear.length
-        ? outerwear.reduce((best: any, ow: any) =>
-            scoreWeatherNorm(ow) >= scoreWeatherNorm(best) ? ow : best)
-        : null;
-      const bestShoes = shoes.length
-        ? shoes.reduce((best: any, sh: any) =>
-            scoreWeatherNorm(sh) >= scoreWeatherNorm(best) ? sh : best)
-        : null;
-      const bestAccessory = accessories.length
-        ? accessories.reduce((best: any, acc: any) =>
-            scoreAccessoryColorNorm(acc, dress, null).score >= scoreAccessoryColorNorm(best, dress, null).score ? acc : best)
-        : null;
-
-      const scoreData = computeScore(null, dress, bestOuterwear, bestShoes, bestAccessory, true);
-      if (scoreData.total >= 30) {
-        combinations.push({
-          items: [dress, bestOuterwear, bestShoes, bestAccessory].filter(Boolean),
-          score: scoreData.total,
-          scoreBreakdown: scoreData,
-          type: 'dress'
-        });
-      }
-    }
-
-    return combinations
-      .sort((a, b) => b.score - a.score)
-      .filter((combo, index, arr) => {
-        const topId    = combo.items.find((i: any) => i.category === 'top' || i.category === 'dress')?.id;
-        const bottomId = combo.items.find((i: any) => i.category === 'bottom')?.id;
-        const key = `${topId}-${bottomId}`;
-        return arr.findIndex(c => {
-          const cTopId    = c.items.find((i: any) => i.category === 'top' || i.category === 'dress')?.id;
-          const cBottomId = c.items.find((i: any) => i.category === 'bottom')?.id;
-          return `${cTopId}-${cBottomId}` === key;
-        }) === index;
-      })
-      .reduce((unique: any[], combo) => {
-        if (unique.length >= 3) return unique;
-        const bottomId = combo.items.find((i: any) => i.category === 'bottom' || i.category === 'dress')?.id;
-        const topId = combo.items.find((i: any) => i.category === 'top')?.id;
-        if (unique.some(c => c.items.find((i: any) => i.category === 'bottom' || i.category === 'dress')?.id === bottomId)) return unique;
-        if (topId && unique.some(c => c.items.find((i: any) => i.category === 'top')?.id === topId)) return unique;
-        unique.push(combo);
-        return unique;
-      }, []);
-  }
 
   function scoreBadgeColor(score: number): string {
     if (score >= 80) return 'bg-emerald-50 text-emerald-600';
@@ -443,13 +123,20 @@
     loading = true;
     generated = false;
     calendarSavedIndex = null;
-    const filtered = filterItems(items);
-    suggestions = generateOutfitCombinations(filtered);
+    const ctx: RecommenderContext = {
+      occasion,
+      temperature,
+      coldThreshold,
+      heatThreshold,
+      userProfile,
+      wornHistory
+    };
+    suggestions = generateOutfitCombinations(filterItems(items, ctx), ctx);
     generated = true;
     loading = false;
   }
 
-  function openCalendarModal(suggestion: any) {
+  function openCalendarModal(suggestion: Suggestion) {
     activeCalendarSuggestion = suggestion;
     const today = new Date();
     calendarDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -467,7 +154,7 @@
     const dateObj = new Date(calendarDate + 'T12:00:00');
     const outfitName = 'Suggested Outfit – ' + dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-    const itemList = activeCalendarSuggestion.items.map((item: any) => ({
+    const itemList = activeCalendarSuggestion.items.map((item) => ({
       id: item.id,
       name: item.name,
       category: item.category,
@@ -630,7 +317,7 @@
                     🔁 Worn recently
                   </span>
                 {/if}
-                {#if userProfile.colorAffinities.some(c => suggestion.items.some((item: any) => item.selected_color === c))}
+                {#if userProfile.colorAffinities.some(c => suggestion.items.some((item) => item.selected_color === c))}
                   <span class="text-[11px] font-bold bg-indigo-50 text-indigo-500 px-2.5 py-1 rounded-full">
                     💙 Your palette
                   </span>
