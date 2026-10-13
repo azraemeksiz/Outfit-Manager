@@ -89,6 +89,36 @@ describe('recommender scenarios', () => {
       expect(ids).toContain(top.id);
     });
 
+    it('drops winter boots when it is hot but keeps all-season sneakers', () => {
+      const boots = item({ category: 'shoes', seasons: ['winter'] });
+      const sneakers = item({ category: 'shoes', seasons: ['all-season'] });
+      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), boots, sneakers], ctxAt(30));
+      expect(ids).not.toContain(boots.id);
+      expect(ids).toContain(sneakers.id);
+    });
+
+    it('leaves the outfit without shoes rather than adding winter boots in the heat', () => {
+      const boots = item({ category: 'shoes', seasons: ['winter'] });
+      const result = suggest([item({ category: 'top' }), item({ category: 'bottom' }), boots], ctxAt(30));
+      expect(result.length).toBeGreaterThan(0);
+      expect(result.flatMap((s) => s.items.map((i) => i.id))).not.toContain(boots.id);
+    });
+
+    it('drops summer sandals when it is cold', () => {
+      const sandals = item({ category: 'shoes', seasons: ['summer'] });
+      const boots = item({ category: 'shoes', seasons: ['winter'] });
+      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), sandals, boots], ctxAt(5));
+      expect(ids).not.toContain(sandals.id);
+      expect(ids).toContain(boots.id);
+    });
+
+    it('drops a winter scarf (accessory) when it is hot', () => {
+      const scarf = item({ category: 'accessory', seasons: ['winter'] });
+      const bag = item({ category: 'accessory', seasons: [] });
+      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), scarf, bag], ctxAt(30));
+      expect(ids).not.toContain(scarf.id);
+    });
+
     it('does not filter by weather for Indoor', () => {
       const winterTop = item({ category: 'top', seasons: ['winter'] });
       const ids = usedIds([winterTop, item({ category: 'bottom' })], ctxAt(30, { occasion: 'Indoor' }));

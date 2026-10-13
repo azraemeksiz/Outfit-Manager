@@ -37,8 +37,6 @@ export function buildUserStyleProfile(history: CalendarEntry[]): UserStyleProfil
   return { patternAffinity: patternCount / allItems.length, colorAffinities };
 }
 
-const WEATHER_FILTERED = new Set(['top', 'bottom', 'dress', 'outerwear']);
-
 /**
  * Hard weather filter: removes pieces that are wrong for the temperature
  * (scoring never gets to see them). Untagged / all-season pieces always pass.
@@ -46,7 +44,6 @@ const WEATHER_FILTERED = new Set(['top', 'bottom', 'dress', 'outerwear']);
  */
 export function fitsWeather(item: Item, ctx: RecommenderContext): boolean {
   if (ctx.occasion === 'Indoor') return true;
-  if (!WEATHER_FILTERED.has(item.category)) return true;
 
   const hot = ctx.temperature !== null && ctx.temperature > ctx.heatThreshold;
   const cold = ctx.temperature !== null && ctx.temperature < ctx.coldThreshold;
