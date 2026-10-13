@@ -6,11 +6,11 @@
   let heatThreshold = 25;
   let lightOuterwearMax = 20;
   let loading = true;
-
-  // The light jacket limit has to stay between the cold and heat thresholds.
-  $: lightOuterwearMax = Math.min(Math.max(lightOuterwearMax, coldThreshold), heatThreshold);
   let saving = false;
   let message = '';
+
+  // What the recommender will actually use (it never adds a jacket past the heat threshold).
+  $: effectiveLightMax = Math.min(lightOuterwearMax, heatThreshold);
 
   onMount(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -167,16 +167,23 @@
           </div>
           <input
             type="range"
-            min={coldThreshold}
-            max={heatThreshold}
+            min="-10"
+            max="40"
             step="1"
             bind:value={lightOuterwearMax}
             class="pink-range mt-5"
           />
           <div class="flex justify-between text-xs text-pink-300 mt-1.5 font-semibold">
-            <span>{coldThreshold}°C</span>
-            <span>{heatThreshold}°C</span>
+            <span>-10°C</span>
+            <span>40°C</span>
           </div>
+          <p class="text-xs text-gray-400 mt-3">
+            {#if effectiveLightMax > coldThreshold}
+              Light jacket from {coldThreshold}°C up to {effectiveLightMax}°C.
+            {:else}
+              No light jacket zone: set this above your cold threshold ({coldThreshold}°C).
+            {/if}
+          </p>
         </div>
 
         <!-- Comfort zone summary -->
@@ -184,7 +191,9 @@
           <p class="text-sm font-black text-pink-500 mb-2">Your comfort zones</p>
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-xs font-bold bg-white px-3 py-1.5 rounded-full text-pink-400 shadow-sm">❄️ Below {coldThreshold}°C → Cold</span>
-            <span class="text-xs font-bold bg-white px-3 py-1.5 rounded-full text-pink-400 shadow-sm">🧥 {coldThreshold}–{lightOuterwearMax}°C → Light jacket</span>
+            {#if effectiveLightMax > coldThreshold}
+              <span class="text-xs font-bold bg-white px-3 py-1.5 rounded-full text-pink-400 shadow-sm">🧥 {coldThreshold}–{effectiveLightMax}°C → Light jacket</span>
+            {/if}
             <span class="text-xs font-bold bg-white px-3 py-1.5 rounded-full text-pink-400 shadow-sm">🌤️ {coldThreshold}–{heatThreshold}°C → Mild</span>
             <span class="text-xs font-bold bg-white px-3 py-1.5 rounded-full text-pink-400 shadow-sm">☀️ Above {heatThreshold}°C → Warm</span>
           </div>
