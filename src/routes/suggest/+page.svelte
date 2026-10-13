@@ -21,6 +21,16 @@
   let coldThreshold = 15;
   let heatThreshold = 25;
   let lightOuterwearMax: number | null = null;
+
+  const harmonyLabels: Record<string, string> = {
+    neutral: 'All neutrals',
+    accent: 'Neutrals + one accent',
+    monochrome: 'Monochrome',
+    analogous: 'Analogous colors',
+    complementary: 'Complementary colors',
+    mixed: 'Mixed colors',
+    clash: 'Bold clash'
+  };
   let locationAsked = false;
 
   let showCalendarModal = false;
@@ -325,9 +335,9 @@
                     💙 Your palette
                   </span>
                 {/if}
-                {#if suggestion.scoreBreakdown.accessoryNote}
+                {#if suggestion.scoreBreakdown.colorHarmony}
                   <span class="text-[11px] font-bold bg-yellow-50 text-yellow-600 px-2.5 py-1 rounded-full">
-                    {suggestion.scoreBreakdown.accessoryNote}
+                    🎨 {harmonyLabels[suggestion.scoreBreakdown.colorHarmony]}
                   </span>
                 {/if}
                 {#if suggestion.outerwearMissing}

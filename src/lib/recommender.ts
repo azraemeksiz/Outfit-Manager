@@ -1,3 +1,4 @@
+import { scoreOutfitColor } from './colorHarmony';
 import type {
   CalendarEntry,
   CombinationStatus,
@@ -127,56 +128,6 @@ export function scoreWeatherNorm(item: Item, ctx: RecommenderContext): number {
   return 0.5;
 }
 
-export function hexToHsl(hex: string): [number, number, number] {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
-  const l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-    }
-  }
-  return [h * 360, s * 100, l * 100];
-}
-
-export function compareHexColors(hex1: string, hex2: string): number {
-  try {
-    const [h1, s1, l1] = hexToHsl(hex1);
-    const [h2, s2, l2] = hexToHsl(hex2);
-    const isNeutral = (s: number, l: number) => s < 15 || l < 15 || l > 85;
-    if (isNeutral(s1, l1) || isNeutral(s2, l2)) return 0.7;
-    const diff = Math.abs(h1 - h2);
-    const hueDiff = Math.min(diff, 360 - diff);
-    if (hueDiff >= 150 && hueDiff <= 210) return 1.0;
-    if (hueDiff <= 15 && Math.abs(s1 - s2) < 20) return 0.85;
-    if (hueDiff >= 110 && hueDiff <= 130) return 0.75;
-    if (hueDiff > 45 && hueDiff <= 60) return 0.65;
-    if (hueDiff >= 15 && hueDiff <= 45 && s1 > 40 && s2 > 40) return 0.1;
-    return 0.5;
-  } catch { return 0.5; }
-}
-
-export function scoreColorNorm(item1: Item | null, item2: Item | null): number {
-  const colors1: string[] = item1?.colors?.length ? item1.colors : (item1?.selected_color ? [item1.selected_color] : []);
-  const colors2: string[] = item2?.colors?.length ? item2.colors : (item2?.selected_color ? [item2.selected_color] : []);
-  if (!colors1.length || !colors2.length) return 0.5;
-  let best = 0;
-  for (const c1 of colors1) {
-    for (const c2 of colors2) {
-      const s = compareHexColors(c1, c2);
-      if (s > best) best = s;
-    }
-  }
-  return best;
-}
-
 export function scorePatternNorm(item1: Item | null, item2: Item | null, ctx: RecommenderContext): number {
   if (!item1 || !item2) return 0.75;
   if (item1.is_patterned && item2.is_patterned)
@@ -189,50 +140,6 @@ export function scoreColorAffinityBonus(outfitItems: Item[], ctx: RecommenderCon
   if (!ctx.userProfile.colorAffinities.length) return 0;
   const matches = outfitItems.filter((i) => i.selected_color && ctx.userProfile.colorAffinities.includes(i.selected_color)).length;
   return Math.min(matches * 0.12, 0.3);
-}
-
-export function scoreShoeColorNorm(shoes: Item | null, bottom: Item | null, top: Item | null): number {
-  if (!shoes?.selected_color) return 0.6;
-  try {
-    const [, , lSh] = hexToHsl(shoes.selected_color);
-    if (lSh < 15 || lSh > 85) return 0.85;
-    const ref = bottom || top;
-    if (!ref?.selected_color) return 0.6;
-    const [h1, , l1] = hexToHsl(shoes.selected_color);
-    const [h2, , l2] = hexToHsl(ref.selected_color);
-    if (l1 < 15 || l1 > 85 || l2 < 15 || l2 > 85) return 0.8;
-    const hueDiff = Math.min(Math.abs(h1 - h2), 360 - Math.abs(h1 - h2));
-    if (hueDiff <= 20) return 0.9;
-    if (hueDiff >= 150 && hueDiff <= 210) return 0.8;
-    if (hueDiff > 20 && hueDiff <= 60) return 0.45;
-    return 0.65;
-  } catch { return 0.6; }
-}
-
-export function scoreAccessoryColorNorm(
-  accessory: Item | null,
-  top: Item | null,
-  bottom: Item | null
-): { score: number; note: string } {
-  if (!accessory?.selected_color) return { score: 0.6, note: '' };
-  try {
-    const [h, s, l] = hexToHsl(accessory.selected_color);
-    if (s < 20 || l < 15 || l > 85) return { score: 0.75, note: '' };
-    const isSilver = l > 65 && s < 25;
-    const isGold = h >= 35 && h <= 65 && s > 25 && l > 35 && l < 78;
-    const outfitHues = [top, bottom]
-      .filter((i): i is Item => !!i?.selected_color)
-      .map((i) => hexToHsl(i.selected_color as string)[0]);
-    if (!outfitHues.length) return { score: 0.7, note: '' };
-    const avgHue = outfitHues.reduce((a, b) => a + b, 0) / outfitHues.length;
-    const isWarm = avgHue <= 60 || avgHue >= 300;
-    const isCool = avgHue >= 120 && avgHue <= 270;
-    if (isGold && isWarm) return { score: 1.0, note: '✨ Gold match' };
-    if (isSilver && isCool) return { score: 1.0, note: '🪙 Silver match' };
-    if (isGold && isCool) return { score: 0.45, note: '' };
-    if (isSilver && isWarm) return { score: 0.45, note: '' };
-    return { score: 0.7, note: '' };
-  } catch { return { score: 0.6, note: '' }; }
 }
 
 export function checkCombinationHistory(
@@ -291,21 +198,8 @@ export function computeScore(
     : 0.5;
 
   const affinityBonus = scoreColorAffinityBonus(allItems, ctx);
-  const topBottomColor = isDress ? 0.5 : scoreColorNorm(top, bottom);
-  const shoeColor = scoreShoeColorNorm(shoes, bottom, top);
-  const accResult = scoreAccessoryColorNorm(accessory, top, bottom);
-
-  let c: number;
-  if (shoes && accessory) {
-    c = topBottomColor * 0.6 + shoeColor * 0.3 + accResult.score * 0.1;
-  } else if (shoes) {
-    c = topBottomColor * 0.7 + shoeColor * 0.3;
-  } else if (accessory) {
-    c = topBottomColor * 0.9 + accResult.score * 0.1;
-  } else {
-    c = topBottomColor;
-  }
-  c = Math.min(1.0, c + affinityBonus);
+  const colorResult = scoreOutfitColor(allItems);
+  const c = Math.min(1.0, colorResult.score + affinityBonus);
 
   const p = isDress ? 0.75 : scorePatternNorm(top, bottom, ctx);
 
@@ -334,12 +228,31 @@ export function computeScore(
     pattern,
     history,
     combinationStatus,
-    accessoryNote: accResult.note
+    colorHarmony: colorResult.harmony
   };
 }
 
+/** Highest score wins; on a tie the first item in the list stays (deterministic). */
 function pickBest(list: Item[], score: (item: Item) => number): Item | null {
-  return list.length ? list.reduce((best, x) => (score(x) >= score(best) ? x : best)) : null;
+  if (!list.length) return null;
+  let best = list[0];
+  let bestScore = score(best);
+  for (const x of list.slice(1)) {
+    const s = score(x);
+    if (s > bestScore) {
+      best = x;
+      bestScore = s;
+    }
+  }
+  return best;
+}
+
+/** Picks the piece that fits the already chosen pieces best: colour harmony first, weather as a weighted extra. */
+function pickComplement(candidates: Item[], base: Item[], ctx: RecommenderContext, weatherWeight: number): Item | null {
+  return pickBest(
+    candidates,
+    (c) => scoreOutfitColor([...base, c]).score + weatherWeight * scoreWeatherNorm(c, ctx)
+  );
 }
 
 export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderContext): Suggestion[] {
@@ -354,9 +267,14 @@ export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderCon
 
   for (const top of tops) {
     for (const bottom of bottoms) {
-      const bestOuterwear = pickBest(outerwear, (o) => scoreWeatherNorm(o, ctx));
-      const bestShoes = pickBest(shoes, (s) => scoreWeatherNorm(s, ctx));
-      const bestAccessory = pickBest(accessories, (a) => scoreAccessoryColorNorm(a, top, bottom).score);
+      const bestOuterwear = pickComplement(outerwear, [top, bottom], ctx, 0.5);
+      const bestShoes = pickComplement(shoes, [top, bottom, bestOuterwear].filter((i): i is Item => !!i), ctx, 0.5);
+      const bestAccessory = pickComplement(
+        accessories,
+        [top, bottom, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
+        ctx,
+        0
+      );
 
       const scoreData = computeScore(ctx, top, bottom, bestOuterwear, bestShoes, bestAccessory);
       if (scoreData.total >= 30) {
@@ -372,9 +290,14 @@ export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderCon
   }
 
   for (const dress of dresses) {
-    const bestOuterwear = pickBest(outerwear, (o) => scoreWeatherNorm(o, ctx));
-    const bestShoes = pickBest(shoes, (s) => scoreWeatherNorm(s, ctx));
-    const bestAccessory = pickBest(accessories, (a) => scoreAccessoryColorNorm(a, dress, null).score);
+    const bestOuterwear = pickComplement(outerwear, [dress], ctx, 0.5);
+    const bestShoes = pickComplement(shoes, [dress, bestOuterwear].filter((i): i is Item => !!i), ctx, 0.5);
+    const bestAccessory = pickComplement(
+      accessories,
+      [dress, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
+      ctx,
+      0
+    );
 
     const scoreData = computeScore(ctx, null, dress, bestOuterwear, bestShoes, bestAccessory, true);
     if (scoreData.total >= 30) {

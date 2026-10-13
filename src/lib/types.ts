@@ -1,3 +1,5 @@
+import type { HarmonyType } from './colorHarmony';
+
 export type Category = 'top' | 'bottom' | 'dress' | 'outerwear' | 'shoes' | 'accessory';
 export type Season = 'summer' | 'winter' | 'spring-fall' | 'all-season';
 export type ItemStatus = 'Clean' | 'Dirty';
@@ -45,7 +47,8 @@ export interface ScoreBreakdown {
   pattern: number;
   history: number;
   combinationStatus: CombinationStatus;
-  accessoryNote: string;
+  /** Harmony type of the outfit's colours (null when no piece has a colour). */
+  colorHarmony: HarmonyType | null;
 }
 
 export interface Suggestion {

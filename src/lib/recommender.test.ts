@@ -191,6 +191,45 @@ describe('recommender scenarios', () => {
     });
   });
 
+  describe('colour-aware piece selection', () => {
+    const outfit = () => [
+      item({ category: 'top', selected_color: '#000000' }),
+      item({ category: 'bottom', selected_color: '#808080' })
+    ];
+
+    it('picks neutral shoes over clashing ones for the same weather score', () => {
+      const redTop = item({ category: 'top', selected_color: '#d62828' });
+      const greyBottom = item({ category: 'bottom', selected_color: '#808080' });
+      const green = item({ category: 'shoes', selected_color: '#28d628' });
+      const black = item({ category: 'shoes', selected_color: '#101010' });
+      const ids = suggest([redTop, greyBottom, green, black], ctxAt(20)).flatMap((s) => s.items.map((i) => i.id));
+      expect(ids).toContain(black.id);
+      expect(ids).not.toContain(green.id);
+    });
+
+    it('does not pick a second loud colour when a neutral accessory exists', () => {
+      const redTop = item({ category: 'top', selected_color: '#d62828' });
+      const bottom = item({ category: 'bottom', selected_color: '#101010' });
+      const greenBag = item({ category: 'accessory', selected_color: '#28d628' });
+      const greyBag = item({ category: 'accessory', selected_color: '#808080' });
+      const ids = suggest([redTop, bottom, greenBag, greyBag], ctxAt(20)).flatMap((s) => s.items.map((i) => i.id));
+      expect(ids).toContain(greyBag.id);
+      expect(ids).not.toContain(greenBag.id);
+    });
+
+    it('reports the harmony type in the score breakdown', () => {
+      const [top, bottom] = outfit();
+      expect(computeScore(ctxAt(20), top, bottom, null, null).colorHarmony).toBe('neutral');
+    });
+
+    it('scores dresses with the same colour model (a clashing accessory lowers the score)', () => {
+      const dress = item({ category: 'dress', selected_color: '#d62828' });
+      const calm = computeScore(ctxAt(20), null, dress, null, null, item({ category: 'accessory', selected_color: '#101010' }), true);
+      const loud = computeScore(ctxAt(20), null, dress, null, null, item({ category: 'accessory', selected_color: '#28d628' }), true);
+      expect(calm.total).toBeGreaterThan(loud.total);
+    });
+  });
+
   it('scores black + white at least as high as a contrasting pair (no style selected)', () => {
     const ctx = ctxAt(20);
     const blackTop = item({ category: 'top', selected_color: '#000000' });
