@@ -37,12 +37,41 @@ export function buildUserStyleProfile(history: CalendarEntry[]): UserStyleProfil
   return { patternAffinity: patternCount / allItems.length, colorAffinities };
 }
 
+const WEATHER_FILTERED = new Set(['top', 'bottom', 'dress', 'outerwear']);
+
+/**
+ * Hard weather filter: removes pieces that are wrong for the temperature
+ * (scoring never gets to see them). Untagged / all-season pieces always pass.
+ * Indoor skips weather entirely, matching scoreWeatherNorm.
+ */
+export function fitsWeather(item: Item, ctx: RecommenderContext): boolean {
+  if (ctx.occasion === 'Indoor') return true;
+  if (!WEATHER_FILTERED.has(item.category)) return true;
+
+  const hot = ctx.temperature !== null && ctx.temperature > ctx.heatThreshold;
+  const cold = ctx.temperature !== null && ctx.temperature < ctx.coldThreshold;
+
+  // Outerwear: needs a known, non-hot temperature.
+  if (item.category === 'outerwear' && (ctx.temperature === null || hot)) return false;
+
+  const seasons = item.seasons || [];
+  if (seasons.length === 0 || seasons.includes('all-season')) return true;
+  const suitsWarm = seasons.includes('summer') || seasons.includes('spring-fall');
+  const suitsCool = seasons.includes('winter') || seasons.includes('spring-fall');
+
+  if (hot) return suitsWarm;
+  if (cold) return suitsCool;
+  // Mild: a coat tagged only winter is too heavy; everything else is fine.
+  if (item.category === 'outerwear') return suitsWarm;
+  return true;
+}
+
 export function filterItems(allItems: Item[], ctx: RecommenderContext): Item[] {
   return allItems.filter((item) => {
     if (ctx.occasion && item.occasions && item.occasions.length > 0) {
       if (!item.occasions.includes(ctx.occasion)) return false;
     }
-    return true;
+    return fitsWeather(item, ctx);
   });
 }
 
@@ -299,7 +328,7 @@ export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderCon
     for (const bottom of bottoms) {
       const bestOuterwearCandidate = pickBest(outerwear, (o) => scoreWeatherNorm(o, ctx));
       const bestOuterwear =
-        bestOuterwearCandidate && (ctx.temperature === null || ctx.temperature < ctx.heatThreshold)
+        bestOuterwearCandidate && ctx.temperature !== null && ctx.temperature <= ctx.heatThreshold
           ? bestOuterwearCandidate
           : null;
       const bestShoes = pickBest(shoes, (s) => scoreWeatherNorm(s, ctx));

@@ -47,6 +47,55 @@ describe('recommender scenarios', () => {
     for (const s of result) expect(s.items.map((i) => i.id)).not.toContain(coat.id);
   });
 
+  describe('hard weather filters', () => {
+    const usedIds = (items: Item[], ctx: RecommenderContext) =>
+      suggest(items, ctx).flatMap((s) => s.items.map((i) => i.id));
+
+    it('never adds outerwear when it is hot', () => {
+      const coat = item({ category: 'outerwear', seasons: ['summer'] });
+      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), coat], ctxAt(30));
+      expect(ids).not.toContain(coat.id);
+    });
+
+    it('never adds outerwear when the temperature is unknown', () => {
+      const coat = item({ category: 'outerwear', seasons: ['spring-fall'] });
+      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), coat], ctxAt(null));
+      expect(ids).not.toContain(coat.id);
+    });
+
+    it('allows a spring-fall jacket in mild weather', () => {
+      const jacket = item({ category: 'outerwear', seasons: ['spring-fall'] });
+      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), jacket], ctxAt(20));
+      expect(ids).toContain(jacket.id);
+    });
+
+    it('allows a winter coat when it is cold', () => {
+      const coat = item({ category: 'outerwear', seasons: ['winter'] });
+      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), coat], ctxAt(5));
+      expect(ids).toContain(coat.id);
+    });
+
+    it('drops summer-only clothes when it is cold', () => {
+      const tank = item({ category: 'top', seasons: ['summer'] });
+      const warmTop = item({ category: 'top', seasons: ['winter'] });
+      const ids = usedIds([tank, warmTop, item({ category: 'bottom' })], ctxAt(5));
+      expect(ids).not.toContain(tank.id);
+      expect(ids).toContain(warmTop.id);
+    });
+
+    it('keeps multi-season pieces that also fit the weather', () => {
+      const top = item({ category: 'top', seasons: ['winter', 'summer'] });
+      const ids = usedIds([top, item({ category: 'bottom' })], ctxAt(30));
+      expect(ids).toContain(top.id);
+    });
+
+    it('does not filter by weather for Indoor', () => {
+      const winterTop = item({ category: 'top', seasons: ['winter'] });
+      const ids = usedIds([winterTop, item({ category: 'bottom' })], ctxAt(30, { occasion: 'Indoor' }));
+      expect(ids).toContain(winterTop.id);
+    });
+  });
+
   it('scores black + white at least as high as a contrasting pair (no style selected)', () => {
     const ctx = ctxAt(20);
     const blackTop = item({ category: 'top', selected_color: '#000000' });
