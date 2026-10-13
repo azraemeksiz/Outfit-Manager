@@ -20,6 +20,7 @@
   let generated = false;
   let coldThreshold = 15;
   let heatThreshold = 25;
+  let lightOuterwearMax: number | null = null;
   let locationAsked = false;
 
   let showCalendarModal = false;
@@ -74,12 +75,13 @@
     if (user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('cold_threshold_pref, heat_threshold_pref')
+        .select('cold_threshold_pref, heat_threshold_pref, light_outerwear_max_pref')
         .eq('id', user.id)
         .single();
       if (profile) {
         coldThreshold = profile.cold_threshold_pref ?? 15;
         heatThreshold = profile.heat_threshold_pref ?? 25;
+        lightOuterwearMax = profile.light_outerwear_max_pref ?? null;
       }
       const { data } = await supabase
         .from('items')
@@ -128,6 +130,7 @@
       temperature,
       coldThreshold,
       heatThreshold,
+      lightOuterwearMax,
       userProfile,
       wornHistory
     };

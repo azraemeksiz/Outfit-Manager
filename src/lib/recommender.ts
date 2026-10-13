@@ -13,6 +13,8 @@ export interface RecommenderContext {
   temperature: number | null;
   coldThreshold: number;
   heatThreshold: number;
+  /** Highest temperature (°C) where a light jacket is still added; defaults to coldThreshold + LIGHT_OUTERWEAR_BUFFER. */
+  lightOuterwearMax?: number | null;
   userProfile: UserStyleProfile;
   wornHistory: CalendarEntry[];
   /** Current time in ms; injectable so tests are deterministic. */
@@ -44,14 +46,18 @@ export type OuterwearMode = 'none' | 'light' | 'required';
 
 /**
  * The single place that decides whether an outfit gets outerwear:
- * below the cold threshold -> required; up to LIGHT_OUTERWEAR_BUFFER above it
- * (never past the heat threshold) -> a light jacket; otherwise none.
+ * below the cold threshold -> required; from there up to the user's light jacket
+ * limit (default: cold + LIGHT_OUTERWEAR_BUFFER, never past the heat threshold)
+ * -> a light jacket; otherwise none.
  * Unknown temperature and Indoor never get outerwear.
  */
 export function outerwearMode(ctx: RecommenderContext): OuterwearMode {
   if (ctx.occasion === 'Indoor' || ctx.temperature === null) return 'none';
   if (ctx.temperature < ctx.coldThreshold) return 'required';
-  const lightLimit = Math.min(ctx.coldThreshold + LIGHT_OUTERWEAR_BUFFER, ctx.heatThreshold);
+  const lightLimit = Math.min(
+    ctx.lightOuterwearMax ?? ctx.coldThreshold + LIGHT_OUTERWEAR_BUFFER,
+    ctx.heatThreshold
+  );
   return ctx.temperature <= lightLimit ? 'light' : 'none';
 }
 

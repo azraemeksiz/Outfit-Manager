@@ -107,6 +107,21 @@ describe('recommender scenarios', () => {
         expect(usedIds([...base(), coat], ctxAt(17))).not.toContain(coat.id);
       });
 
+      it('uses the user-chosen light jacket limit instead of the default', () => {
+        const jacket = item({ category: 'outerwear', seasons: ['spring-fall'] });
+        // default limit is cold+5 = 20: no jacket at 22°C
+        expect(usedIds([...base(), jacket], ctxAt(22))).not.toContain(jacket.id);
+        // user raises the limit to 23°C: jacket appears at 22°C
+        expect(usedIds([...base(), jacket], ctxAt(22, { lightOuterwearMax: 23 }))).toContain(jacket.id);
+        // user lowers it to 16°C: no jacket at 18°C
+        expect(usedIds([...base(), jacket], ctxAt(18, { lightOuterwearMax: 16 }))).not.toContain(jacket.id);
+      });
+
+      it('never adds a light jacket above the heat threshold even if the limit is set higher', () => {
+        const jacket = item({ category: 'outerwear', seasons: ['spring-fall'] });
+        expect(usedIds([...base(), jacket], ctxAt(28, { lightOuterwearMax: 35 }))).not.toContain(jacket.id);
+      });
+
       it('requires outerwear below the cold threshold: every suggestion includes one', () => {
         const coat = item({ category: 'outerwear', seasons: ['winter'] });
         const result = suggest([...base(), coat], ctxAt(10));
