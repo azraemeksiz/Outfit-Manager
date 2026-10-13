@@ -53,6 +53,8 @@ export interface Suggestion {
   score: number;
   scoreBreakdown: ScoreBreakdown;
   type: 'top+bottom' | 'dress';
+  /** True when it is cold enough to need outerwear but no suitable piece is available. */
+  outerwearMissing?: boolean;
 }
 
 export interface UserStyleProfile {

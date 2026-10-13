@@ -37,19 +37,45 @@ export function buildUserStyleProfile(history: CalendarEntry[]): UserStyleProfil
   return { patternAffinity: patternCount / allItems.length, colorAffinities };
 }
 
+/** Degrees above the cold threshold where a light jacket is still worth adding. */
+export const LIGHT_OUTERWEAR_BUFFER = 5;
+
+export type OuterwearMode = 'none' | 'light' | 'required';
+
+/**
+ * The single place that decides whether an outfit gets outerwear:
+ * below the cold threshold -> required; up to LIGHT_OUTERWEAR_BUFFER above it
+ * (never past the heat threshold) -> a light jacket; otherwise none.
+ * Unknown temperature and Indoor never get outerwear.
+ */
+export function outerwearMode(ctx: RecommenderContext): OuterwearMode {
+  if (ctx.occasion === 'Indoor' || ctx.temperature === null) return 'none';
+  if (ctx.temperature < ctx.coldThreshold) return 'required';
+  const lightLimit = Math.min(ctx.coldThreshold + LIGHT_OUTERWEAR_BUFFER, ctx.heatThreshold);
+  return ctx.temperature <= lightLimit ? 'light' : 'none';
+}
+
 /**
  * Hard weather filter: removes pieces that are wrong for the temperature
  * (scoring never gets to see them). Untagged / all-season pieces always pass.
  * Indoor skips weather entirely, matching scoreWeatherNorm.
  */
 export function fitsWeather(item: Item, ctx: RecommenderContext): boolean {
+  if (item.category === 'outerwear') {
+    const mode = outerwearMode(ctx);
+    if (mode === 'none') return false;
+    const seasons = item.seasons || [];
+    if (seasons.length === 0 || seasons.includes('all-season')) return true;
+    // required (cold): anything warm enough; light (cool): a winter-only coat is too heavy.
+    return mode === 'required'
+      ? seasons.includes('winter') || seasons.includes('spring-fall')
+      : seasons.includes('summer') || seasons.includes('spring-fall');
+  }
+
   if (ctx.occasion === 'Indoor') return true;
 
   const hot = ctx.temperature !== null && ctx.temperature > ctx.heatThreshold;
   const cold = ctx.temperature !== null && ctx.temperature < ctx.coldThreshold;
-
-  // Outerwear: needs a known, non-hot temperature.
-  if (item.category === 'outerwear' && (ctx.temperature === null || hot)) return false;
 
   const seasons = item.seasons || [];
   if (seasons.length === 0 || seasons.includes('all-season')) return true;
@@ -58,8 +84,6 @@ export function fitsWeather(item: Item, ctx: RecommenderContext): boolean {
 
   if (hot) return suitsWarm;
   if (cold) return suitsCool;
-  // Mild: a coat tagged only winter is too heavy; everything else is fine.
-  if (item.category === 'outerwear') return suitsWarm;
   return true;
 }
 
@@ -320,14 +344,11 @@ export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderCon
   const shoes = filtered.filter((i) => i.category === 'shoes');
   const accessories = filtered.filter((i) => i.category === 'accessory');
   const combinations: Suggestion[] = [];
+  const needsOuterwear = outerwearMode(ctx) === 'required';
 
   for (const top of tops) {
     for (const bottom of bottoms) {
-      const bestOuterwearCandidate = pickBest(outerwear, (o) => scoreWeatherNorm(o, ctx));
-      const bestOuterwear =
-        bestOuterwearCandidate && ctx.temperature !== null && ctx.temperature <= ctx.heatThreshold
-          ? bestOuterwearCandidate
-          : null;
+      const bestOuterwear = pickBest(outerwear, (o) => scoreWeatherNorm(o, ctx));
       const bestShoes = pickBest(shoes, (s) => scoreWeatherNorm(s, ctx));
       const bestAccessory = pickBest(accessories, (a) => scoreAccessoryColorNorm(a, top, bottom).score);
 
@@ -337,7 +358,8 @@ export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderCon
           items: [top, bottom, bestOuterwear, bestShoes, bestAccessory].filter((i): i is Item => !!i),
           score: scoreData.total,
           scoreBreakdown: scoreData,
-          type: 'top+bottom'
+          type: 'top+bottom',
+          outerwearMissing: needsOuterwear && !bestOuterwear
         });
       }
     }
@@ -354,7 +376,8 @@ export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderCon
         items: [dress, bestOuterwear, bestShoes, bestAccessory].filter((i): i is Item => !!i),
         score: scoreData.total,
         scoreBreakdown: scoreData,
-        type: 'dress'
+        type: 'dress',
+        outerwearMissing: needsOuterwear && !bestOuterwear
       });
     }
   }

@@ -89,6 +89,56 @@ describe('recommender scenarios', () => {
       expect(ids).toContain(top.id);
     });
 
+    describe('outerwear decision (cold threshold 15, heat 25)', () => {
+      const base = () => [item({ category: 'top' }), item({ category: 'bottom' })];
+
+      it('does not add an all-season coat at 24°C', () => {
+        const coat = item({ category: 'outerwear', seasons: ['all-season'] });
+        expect(usedIds([...base(), coat], ctxAt(24))).not.toContain(coat.id);
+      });
+
+      it('adds a light jacket just above the cold threshold', () => {
+        const jacket = item({ category: 'outerwear', seasons: ['spring-fall'] });
+        expect(usedIds([...base(), jacket], ctxAt(17))).toContain(jacket.id);
+      });
+
+      it('does not add a winter-only coat just above the cold threshold', () => {
+        const coat = item({ category: 'outerwear', seasons: ['winter'] });
+        expect(usedIds([...base(), coat], ctxAt(17))).not.toContain(coat.id);
+      });
+
+      it('requires outerwear below the cold threshold: every suggestion includes one', () => {
+        const coat = item({ category: 'outerwear', seasons: ['winter'] });
+        const result = suggest([...base(), coat], ctxAt(10));
+        expect(result.length).toBeGreaterThan(0);
+        for (const s of result) {
+          expect(s.items.map((i) => i.id)).toContain(coat.id);
+          expect(s.outerwearMissing).toBeFalsy();
+        }
+      });
+
+      it('flags outerwearMissing when it is cold and there is no suitable coat', () => {
+        const summerJacket = item({ category: 'outerwear', seasons: ['summer'] });
+        const result = suggest([...base(), summerJacket], ctxAt(5));
+        expect(result.length).toBeGreaterThan(0);
+        for (const s of result) expect(s.outerwearMissing).toBe(true);
+      });
+
+      it('never adds outerwear for Indoor, with top+bottom or a dress', () => {
+        const coat = item({ category: 'outerwear', seasons: ['all-season'] });
+        const dress = item({ category: 'dress' });
+        const ids = usedIds([...base(), dress, coat], ctxAt(5, { occasion: 'Indoor' }));
+        expect(ids).not.toContain(coat.id);
+      });
+
+      it('applies the same rule to dresses (no coat in the heat, coat in the cold)', () => {
+        const coat = item({ category: 'outerwear', seasons: ['winter'] });
+        const dress = item({ category: 'dress' });
+        expect(usedIds([dress, coat], ctxAt(30))).not.toContain(coat.id);
+        expect(usedIds([dress, coat], ctxAt(5))).toContain(coat.id);
+      });
+    });
+
     it('drops winter boots when it is hot but keeps all-season sneakers', () => {
       const boots = item({ category: 'shoes', seasons: ['winter'] });
       const sneakers = item({ category: 'shoes', seasons: ['all-season'] });

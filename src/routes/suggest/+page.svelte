@@ -327,6 +327,11 @@
                     {suggestion.scoreBreakdown.accessoryNote}
                   </span>
                 {/if}
+                {#if suggestion.outerwearMissing}
+                  <span class="text-[11px] font-bold bg-red-50 text-red-500 px-2.5 py-1 rounded-full">
+                    🧥 It's cold, but no suitable coat in your wardrobe
+                  </span>
+                {/if}
               </div>
 
               <div class="grid grid-cols-4 gap-3 mb-4">
