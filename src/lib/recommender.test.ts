@@ -185,11 +185,23 @@ describe('recommender scenarios', () => {
       expect(ids).toContain(boots.id);
     });
 
-    it('drops a winter scarf (accessory) when it is hot', () => {
+    it('accessories are not part of the suggestions at all (belts, jewellery, bags have no model yet)', () => {
       const scarf = item({ category: 'accessory', seasons: ['winter'] });
       const bag = item({ category: 'accessory', seasons: [] });
-      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), scarf, bag], ctxAt(30));
-      expect(ids).not.toContain(scarf.id);
+      const dress = item({ category: 'dress' });
+      for (const t of [5, 20, 30]) {
+        const result = suggest([item({ category: 'top' }), item({ category: 'bottom' }), dress, scarf, bag], ctxAt(t));
+        expect(result.length).toBeGreaterThan(0);
+        for (const s of result) {
+          expect(s.items.some((i) => i.category === 'accessory')).toBe(false);
+        }
+      }
+    });
+
+    it('a wardrobe of only accessories gives no outfit, and says why', () => {
+      const bag = item({ category: 'accessory' });
+      expect(suggest([bag], ctxAt(20))).toEqual([]);
+      expect(diagnoseEmpty([bag], ctxAt(20)).reason).toBe('missing-category');
     });
 
     it('does not filter by weather for Indoor', () => {
@@ -232,18 +244,9 @@ describe('recommender scenarios', () => {
       const top = item({ category: 'top', selected_color: '#808080' });
       expect(suggest([top, shorts, jeans], ctxAt(16))[0].items.map((i) => i.id)).toContain(jeans.id);
     });
-
-    it('the accessory choice looks at the weather: no winter scarf at 24°C when a bag exists', () => {
-      const scarf = item({ category: 'accessory', seasons: ['winter'], selected_color: '#808080' });
-      const bag = item({ category: 'accessory', seasons: ['all-season'], selected_color: '#808080' });
-      const ids = suggest([item({ category: 'top' }), item({ category: 'bottom' }), scarf, bag], ctxAt(24))
-        .flatMap((s) => s.items.map((i) => i.id));
-      expect(ids).toContain(bag.id);
-      expect(ids).not.toContain(scarf.id);
-    });
   });
 
-  describe('side pieces (outerwear, shoes, accessory)', () => {
+  describe('side pieces (outerwear, shoes)', () => {
     const grid = (n: number) => ({
       tops: Array.from({ length: n }, () => item({ category: 'top', selected_color: '#808080' })),
       bottoms: Array.from({ length: n }, () => item({ category: 'bottom', selected_color: '#101010' }))
@@ -284,26 +287,6 @@ describe('recommender scenarios', () => {
       });
       const result = suggest([...tops, ...bottoms, ...good, loud], ctxAt(20), 6);
       expect(idsOf(result, 'shoes')).not.toContain(loud.id);
-    });
-
-    it('the accessory is left out when it would make the colours worse', () => {
-      const top = item({ category: 'top', selected_color: '#101010' });
-      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
-      const loudBag = item({
-        category: 'accessory',
-        selected_color: '#d62828',
-        is_patterned: true,
-        colors: ['#d62828', '#28d628']
-      });
-      const result = suggest([top, bottom, loudBag], ctxAt(20));
-      expect(result[0].items.map((i) => i.id)).not.toContain(loudBag.id);
-    });
-
-    it('a harmless accessory is kept', () => {
-      const top = item({ category: 'top', selected_color: '#101010' });
-      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
-      const bag = item({ category: 'accessory', selected_color: '#808080' });
-      expect(suggest([top, bottom, bag], ctxAt(20))[0].items.map((i) => i.id)).toContain(bag.id);
     });
 
     it('scores stay consistent after rotation (breakdown matches the final pieces)', () => {
@@ -600,25 +583,15 @@ describe('recommender scenarios', () => {
       expect(ids).not.toContain(green.id);
     });
 
-    it('does not pick a second loud colour when a neutral accessory exists', () => {
-      const redTop = item({ category: 'top', selected_color: '#d62828' });
-      const bottom = item({ category: 'bottom', selected_color: '#101010' });
-      const greenBag = item({ category: 'accessory', selected_color: '#28d628' });
-      const greyBag = item({ category: 'accessory', selected_color: '#808080' });
-      const ids = suggest([redTop, bottom, greenBag, greyBag], ctxAt(20)).flatMap((s) => s.items.map((i) => i.id));
-      expect(ids).toContain(greyBag.id);
-      expect(ids).not.toContain(greenBag.id);
-    });
-
     it('reports the harmony type in the score breakdown', () => {
       const [top, bottom] = outfit();
       expect(computeScore(ctxAt(20), top, bottom, null, null).colorHarmony).toBe('neutral');
     });
 
-    it('scores dresses with the same colour model (a clashing accessory lowers the score)', () => {
+    it('scores dresses with the same colour model (clashing shoes lower the score)', () => {
       const dress = item({ category: 'dress', selected_color: '#d62828' });
-      const calm = computeScore(ctxAt(20), null, dress, null, null, item({ category: 'accessory', selected_color: '#101010' }), true);
-      const loud = computeScore(ctxAt(20), null, dress, null, null, item({ category: 'accessory', selected_color: '#28d628' }), true);
+      const calm = computeScore(ctxAt(20), null, dress, null, item({ category: 'shoes', selected_color: '#101010' }), true);
+      const loud = computeScore(ctxAt(20), null, dress, null, item({ category: 'shoes', selected_color: '#28d628' }), true);
       expect(calm.total).toBeGreaterThan(loud.total);
     });
   });

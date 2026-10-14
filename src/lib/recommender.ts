@@ -290,10 +290,9 @@ export function computeScore(
   bottom: Item | null,
   outerwear: Item | null,
   shoes: Item | null,
-  accessory: Item | null = null,
   isDress = false
 ): ScoreBreakdown {
-  const allItems = [top, bottom, outerwear, shoes, accessory].filter((i): i is Item => !!i);
+  const allItems = [top, bottom, outerwear, shoes].filter((i): i is Item => !!i);
   const coreItems = (isDress ? [bottom] : [top, bottom]).filter((i): i is Item => !!i);
 
   const w = allItems.length
@@ -449,34 +448,27 @@ function pickComplement(candidates: Item[], base: Item[], ctx: RecommenderContex
   return pickBest(candidates, (c) => colorOf([...base, c], ctx) + weatherWeight * scoreWeatherNorm(c, ctx));
 }
 
-/** An accessory is optional: it is only worn when it does not make the colours worse. */
-function pickOptionalAccessory(candidates: Item[], base: Item[], ctx: RecommenderContext): Item | null {
-  const best = pickComplement(candidates, base, ctx, 0.5);
-  if (!best) return null;
-  return colorOf([...base, best], ctx) >= colorOf(base, ctx) - 1e-9 ? best : null;
-}
-
-/** Score taken off a side piece (outerwear, shoes, accessory) for every earlier suggestion that already wears it. */
+/** Score taken off a side piece (outerwear, shoes) for every earlier suggestion that already wears it. */
 export const SIDE_REPEAT_PENALTY = 0.12;
 
-const SIDE_WEATHER_WEIGHT = { outerwear: 0.5, shoes: 0.5, accessory: 0.5 } as const;
+const SIDE_WEATHER_WEIGHT = { outerwear: 0.5, shoes: 0.5 } as const;
 
 /**
  * After the final list is chosen, rotate the side pieces: for each suggestion pick again the best
  * piece of every side category it already has, with a small penalty for pieces used earlier in the list.
  * Never adds or removes a category, so the optional/required decisions stay as they were.
+ * Accessories are not part of the suggestions: belts, jewellery and bags have no model yet.
  */
 function rotateSidePieces(
   picked: Suggestion[],
-  pools: { outerwear: Item[]; shoes: Item[]; accessory: Item[] },
+  pools: { outerwear: Item[]; shoes: Item[] },
   ctx: RecommenderContext
 ): Suggestion[] {
   const uses: Record<keyof typeof pools, Map<number, number>> = {
     outerwear: new Map(),
-    shoes: new Map(),
-    accessory: new Map()
+    shoes: new Map()
   };
-  const order = ['outerwear', 'shoes', 'accessory'] as const;
+  const order = ['outerwear', 'shoes'] as const;
 
   return picked.map((s) => {
     const core = s.items.filter((i) => CORE_CATEGORIES.has(i.category));
@@ -508,12 +500,11 @@ function rotateSidePieces(
       bottom,
       chosen.outerwear ?? null,
       chosen.shoes ?? null,
-      chosen.accessory ?? null,
       isDress
     );
     return {
       ...s,
-      items: [...core, chosen.outerwear, chosen.shoes, chosen.accessory].filter((i): i is Item => !!i),
+      items: [...core, chosen.outerwear, chosen.shoes].filter((i): i is Item => !!i),
       score: scoreData.total,
       scoreBreakdown: scoreData
     };
@@ -522,7 +513,7 @@ function rotateSidePieces(
 
 /**
  * Above this many top+bottom pairs only the best pairs (scored without side pieces) get their
- * jacket, shoes and accessory picked. Small and medium wardrobes are searched completely.
+ * jacket and shoes picked. Small and medium wardrobes are searched completely.
  */
 export const PAIR_LIMIT = 400;
 
@@ -540,14 +531,13 @@ export function generateOutfitCombinations(
   const dresses = filtered.filter((i) => i.category === 'dress');
   const outerwear = filtered.filter((i) => i.category === 'outerwear');
   const shoes = filtered.filter((i) => i.category === 'shoes');
-  const accessories = filtered.filter((i) => i.category === 'accessory');
   const combinations: Suggestion[] = [];
   const needsOuterwear = outerwearMode(ctx) === 'required';
 
   let pairs: [Item, Item][] = tops.flatMap((top) => bottoms.map((bottom): [Item, Item] => [top, bottom]));
   if (pairs.length > pairLimit) {
     pairs = pairs
-      .map((pair) => ({ pair, base: computeScore(ctx, pair[0], pair[1], null, null, null).total }))
+      .map((pair) => ({ pair, base: computeScore(ctx, pair[0], pair[1], null, null).total }))
       .sort((a, b) => b.base - a.base || a.pair[0].id - b.pair[0].id || a.pair[1].id - b.pair[1].id)
       .slice(0, pairLimit)
       .map((x) => x.pair);
@@ -556,16 +546,10 @@ export function generateOutfitCombinations(
   for (const [top, bottom] of pairs) {
     const bestOuterwear = pickComplement(outerwear, [top, bottom], ctx, 0.5);
     const bestShoes = pickComplement(shoes, [top, bottom, bestOuterwear].filter((i): i is Item => !!i), ctx, 0.5);
-    const bestAccessory = pickOptionalAccessory(
-      accessories,
-      [top, bottom, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
-      ctx
-    );
-
-    const scoreData = computeScore(ctx, top, bottom, bestOuterwear, bestShoes, bestAccessory);
+    const scoreData = computeScore(ctx, top, bottom, bestOuterwear, bestShoes);
     if (scoreData.total >= 30) {
       combinations.push({
-        items: [top, bottom, bestOuterwear, bestShoes, bestAccessory].filter((i): i is Item => !!i),
+        items: [top, bottom, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
         score: scoreData.total,
         scoreBreakdown: scoreData,
         type: 'top+bottom',
@@ -577,16 +561,10 @@ export function generateOutfitCombinations(
   for (const dress of dresses) {
     const bestOuterwear = pickComplement(outerwear, [dress], ctx, 0.5);
     const bestShoes = pickComplement(shoes, [dress, bestOuterwear].filter((i): i is Item => !!i), ctx, 0.5);
-    const bestAccessory = pickOptionalAccessory(
-      accessories,
-      [dress, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
-      ctx
-    );
-
-    const scoreData = computeScore(ctx, null, dress, bestOuterwear, bestShoes, bestAccessory, true);
+    const scoreData = computeScore(ctx, null, dress, bestOuterwear, bestShoes, true);
     if (scoreData.total >= 30) {
       combinations.push({
-        items: [dress, bestOuterwear, bestShoes, bestAccessory].filter((i): i is Item => !!i),
+        items: [dress, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
         score: scoreData.total,
         scoreBreakdown: scoreData,
         type: 'dress',
@@ -595,7 +573,7 @@ export function generateOutfitCombinations(
     }
   }
 
-  return rotateSidePieces(selectDiverse(combinations, limit), { outerwear, shoes, accessory: accessories }, ctx);
+  return rotateSidePieces(selectDiverse(combinations, limit), { outerwear, shoes }, ctx);
 }
 
 /** How many suggestions are returned by default. */
