@@ -80,6 +80,13 @@ describe('style tables', () => {
     expect(m.regular).toBeGreaterThanOrEqual(Math.max(...Object.values(m)));
   });
 
+  it('streetwear accepts regular fits too: only fitted is clearly disliked', () => {
+    const s = getStyle('streetwear')!.silhouetteScores;
+    expect(s.regular).toBeGreaterThanOrEqual(0.75);
+    expect(s.oversized).toBeGreaterThan(s.regular);
+    expect(s.fitted).toBeLessThan(s.regular);
+  });
+
   it('returns no table (neutral default) when no style is selected', () => {
     expect(colorScoresForStyle(null)).toEqual({});
     expect(colorScoresForStyle(undefined)).toEqual({});

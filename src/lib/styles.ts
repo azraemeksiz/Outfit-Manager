@@ -46,7 +46,7 @@ export const STYLES: StyleProfile[] = [
     colorScores: { neutral: 0.8, accent: 0.9, monochrome: 0.8, analogous: 0.75, complementary: 0.85, mixed: 0.65, clash: 0.45 },
     toneScores: { none: 0.7, soft: 0.45, vivid: 0.95, mixed: 0.6 },
     patternScores: [0.75, 0.95, 0.5],
-    silhouetteScores: { oversized: 1.0, relaxed: 0.9, contrast: 0.75, regular: 0.5, fitted: 0.3 }
+    silhouetteScores: { oversized: 1.0, relaxed: 0.95, contrast: 0.8, regular: 0.8, fitted: 0.4 }
   },
   {
     id: 'girl-casual',
