@@ -87,6 +87,21 @@ describe('style tables', () => {
     expect(s.fitted).toBeLessThan(s.regular);
   });
 
+  it('maximalist: unrelated colours score highest, all-neutral lowest', () => {
+    const c = getStyle('maximalist')!.colorScores;
+    expect(c.clash).toBe(Math.max(...Object.values(c)));
+    expect(c.neutral).toBe(Math.min(...Object.values(c)));
+    expect(c.clash).toBeGreaterThan(c.complementary);
+  });
+
+  it('maximalist: silhouettes are nearly equal, looser ones slightly ahead', () => {
+    const s = getStyle('maximalist')!.silhouetteScores;
+    const values = Object.values(s);
+    expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(0.2);
+    expect(s.oversized).toBeGreaterThan(s.fitted);
+    expect(s.relaxed).toBeGreaterThan(s.regular);
+  });
+
   it('returns no table (neutral default) when no style is selected', () => {
     expect(colorScoresForStyle(null)).toEqual({});
     expect(colorScoresForStyle(undefined)).toEqual({});

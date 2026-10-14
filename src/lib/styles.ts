@@ -70,10 +70,12 @@ export const STYLES: StyleProfile[] = [
     id: 'maximalist',
     label: 'Maximalist',
     emoji: '🌈',
-    colorScores: { neutral: 0.5, accent: 0.65, monochrome: 0.6, analogous: 0.8, complementary: 1.0, mixed: 0.9, clash: 0.8 },
+    // Unrelated, even absurd colour combinations score highest; all-neutral is the least liked.
+    colorScores: { neutral: 0.45, accent: 0.6, monochrome: 0.55, analogous: 0.75, complementary: 0.9, mixed: 0.95, clash: 1.0 },
     toneScores: { none: 0.4, soft: 0.7, vivid: 0.9, mixed: 1.0 },
     patternScores: [0.4, 0.9, 1.0],
-    silhouetteScores: { oversized: 0.9, contrast: 0.95, relaxed: 0.8, regular: 0.55, fitted: 0.5 }
+    // Nearly flat: every silhouette is fine, looser pieces are only slightly ahead.
+    silhouetteScores: { oversized: 0.95, contrast: 0.95, relaxed: 0.9, regular: 0.85, fitted: 0.8 }
   }
 ];
 
