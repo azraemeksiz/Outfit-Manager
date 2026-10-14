@@ -65,8 +65,13 @@ describe('freshness: long-unworn pieces come first, favourites return after abou
     expect(scoreHistoryNorm(item, ctx)).toBe(1);
   });
 
-  it('treats a future date (planned, not worn) like worn today instead of rewarding it', () => {
+  it('ignores a future date (it cannot have been worn yet): scored like never worn', () => {
     const item: Item = { id: 1, name: 'x', category: 'top', last_worn_date: daysAgo(-3) };
-    expect(scoreHistoryNorm(item, ctx)).toBe(0);
+    expect(scoreHistoryNorm(item, ctx)).toBe(fresh(null));
+  });
+
+  it('ignores a malformed date instead of producing NaN', () => {
+    const item: Item = { id: 1, name: 'x', category: 'top', last_worn_date: 'not-a-date' };
+    expect(scoreHistoryNorm(item, ctx)).toBe(fresh(null));
   });
 });

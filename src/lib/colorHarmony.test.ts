@@ -29,6 +29,12 @@ describe('classifyColor', () => {
     }
   });
 
+  it('accepts 8-digit hex (alpha is ignored) and 3-digit hex without #', () => {
+    expect(classifyColor('#d62828ff')?.kind).toBe('chromatic');
+    expect(classifyColor('#d62828ff')?.h).toBeCloseTo(classifyColor('#d62828')!.h);
+    expect(classifyColor('f00')?.kind).toBe('chromatic');
+  });
+
   it('accepts 3-digit hex and rejects garbage', () => {
     expect(classifyColor('#f00')?.kind).toBe('chromatic');
     expect(classifyColor('red')).toBeNull();

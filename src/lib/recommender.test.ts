@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeScore, generateOutfitCombinations, filterItems } from './recommender';
+import { checkCombinationHistory, computeScore, generateOutfitCombinations, filterItems } from './recommender';
 import type { RecommenderContext } from './recommender';
 import type { Item } from './types';
 
@@ -188,6 +188,30 @@ describe('recommender scenarios', () => {
       const winterTop = item({ category: 'top', seasons: ['winter'] });
       const ids = usedIds([winterTop, item({ category: 'bottom' })], ctxAt(30, { occasion: 'Indoor' }));
       expect(ids).toContain(winterTop.id);
+    });
+  });
+
+  describe('robustness', () => {
+    it('skips a worn-history entry with a malformed date instead of counting it', () => {
+      const entry = { date: 'garbage', is_worn: true, outfits: { item_list: [{ id: 1 }, { id: 2 }] } };
+      const status = checkCombinationHistory(1, 2, ctxAt(20, { wornHistory: [entry as any] }));
+      expect(status).toBe('none');
+    });
+
+    it('chooses the same pieces whatever the wardrobe order (ties go to the lowest id)', () => {
+      const top = item({ category: 'top' });
+      const bottom = item({ category: 'bottom' });
+      const shoesA = item({ category: 'shoes', selected_color: '#808080' });
+      const shoesB = item({ category: 'shoes', selected_color: '#808080' });
+      const pick = (list: Item[]) => suggest(list, ctxAt(20))[0].items.find((i) => i.category === 'shoes')!.id;
+      expect(pick([top, bottom, shoesA, shoesB])).toBe(pick([shoesB, shoesA, bottom, top]));
+      expect(pick([top, bottom, shoesA, shoesB])).toBe(Math.min(shoesA.id, shoesB.id));
+    });
+
+    it('returns the same top list whatever the wardrobe order', () => {
+      const wardrobe = [1, 2, 3].flatMap(() => [item({ category: 'top' }), item({ category: 'bottom' })]);
+      const ids = (list: Item[]) => suggest(list, ctxAt(20)).map((s) => s.items.map((i) => i.id).join('-'));
+      expect(ids(wardrobe)).toEqual(ids([...wardrobe].reverse()));
     });
   });
 

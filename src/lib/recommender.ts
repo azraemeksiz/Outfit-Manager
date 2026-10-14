@@ -160,6 +160,7 @@ export function checkCombinationHistory(
 
   for (const entry of ctx.wornHistory) {
     const entryTime = new Date(entry.date + 'T12:00:00').getTime();
+    if (Number.isNaN(entryTime)) continue; // malformed date: ignore the entry
     if (entryTime < sixMonthsAgo) continue;
     const ids: number[] = (entry.outfits?.item_list || []).map((i) => i.id);
     if (ids.includes(topId) && ids.includes(bottomId)) {
@@ -189,7 +190,8 @@ export function scoreHistoryNorm(item: Item, ctx: RecommenderContext): number {
   // Dates are whole days: compare at local noon so the time of day never shifts the bucket.
   const worn = new Date(item.last_worn_date + 'T12:00:00').getTime();
   const days = Math.floor((nowOf(ctx) - worn) / DAY_MS);
-  if (Number.isNaN(days)) return FRESHNESS_NEVER_WORN;
+  // Malformed or future dates cannot be a real "last worn" day: treat the piece as never worn.
+  if (Number.isNaN(days) || days < 0) return FRESHNESS_NEVER_WORN;
   for (const [maxDays, score] of FRESHNESS_STEPS) {
     if (days <= maxDays) return score;
   }
@@ -265,14 +267,14 @@ export function computeScore(
 export const MAX_POINTS_NO_STYLE = { weather: 40, color: 30, pattern: 15, silhouette: 0, history: 15 };
 export const MAX_POINTS_WITH_STYLE = { weather: 40, color: 25, pattern: 10, silhouette: 15, history: 10 };
 
-/** Highest score wins; on a tie the first item in the list stays (deterministic). */
+/** Highest score wins; on a tie the lowest id wins, so the wardrobe order never matters. */
 function pickBest(list: Item[], score: (item: Item) => number): Item | null {
   if (!list.length) return null;
   let best = list[0];
   let bestScore = score(best);
   for (const x of list.slice(1)) {
     const s = score(x);
-    if (s > bestScore) {
+    if (s > bestScore || (s === bestScore && x.id < best.id)) {
       best = x;
       bestScore = s;
     }
@@ -368,11 +370,18 @@ const CORE_CATEGORIES = new Set(['top', 'bottom', 'dress']);
  */
 function selectDiverse(combinations: Suggestion[], limit: number): Suggestion[] {
   // Equal total scores are common (scores are whole numbers): break ties by freshness, then colour.
+  const idKey = (s: Suggestion) =>
+    s.items
+      .map((i) => i.id)
+      .sort((x, y) => x - y)
+      .map((id) => String(id).padStart(10, '0'))
+      .join('-');
   const remaining = [...combinations].sort(
     (a, b) =>
       b.score - a.score ||
       b.scoreBreakdown.history - a.scoreBreakdown.history ||
-      b.scoreBreakdown.color - a.scoreBreakdown.color
+      b.scoreBreakdown.color - a.scoreBreakdown.color ||
+      idKey(a).localeCompare(idKey(b)) // last resort: never depend on the wardrobe order
   );
   const uses = new Map<number, number>();
   const picked: Suggestion[] = [];

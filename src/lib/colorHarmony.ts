@@ -45,10 +45,11 @@ export interface ParsedColor {
 }
 
 function parseHex(hex: string): [number, number, number] | null {
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(hex.trim());
   if (!m) return null;
   let v = m[1];
   if (v.length === 3) v = v.split('').map((c) => c + c).join('');
+  if (v.length === 8) v = v.slice(0, 6); // #rrggbbaa: the alpha channel is ignored
   return [parseInt(v.slice(0, 2), 16) / 255, parseInt(v.slice(2, 4), 16) / 255, parseInt(v.slice(4, 6), 16) / 255];
 }
 

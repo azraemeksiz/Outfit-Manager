@@ -152,7 +152,8 @@
     const ctx: RecommenderContext = {
       occasion,
       temperature,
-      coldThreshold,
+      // Settings validate cold < heat; this guards old saved values that overlap.
+      coldThreshold: Math.min(coldThreshold, heatThreshold),
       heatThreshold,
       lightOuterwearMax,
       style,
