@@ -243,6 +243,74 @@ describe('recommender scenarios', () => {
     });
   });
 
+  describe('side pieces (outerwear, shoes, accessory)', () => {
+    const grid = (n: number) => ({
+      tops: Array.from({ length: n }, () => item({ category: 'top', selected_color: '#808080' })),
+      bottoms: Array.from({ length: n }, () => item({ category: 'bottom', selected_color: '#101010' }))
+    });
+    const idsOf = (list: { items: Item[] }[], category: string) =>
+      list.map((s) => s.items.find((i) => i.category === category)?.id);
+
+    it('rotates equally good shoes across the suggestions instead of repeating one pair', () => {
+      const { tops, bottoms } = grid(3);
+      const shoes = [1, 2, 3].map(() => item({ category: 'shoes', selected_color: '#808080' }));
+      const result = suggest([...tops, ...bottoms, ...shoes], ctxAt(20), 6);
+      expect(new Set(idsOf(result, 'shoes')).size).toBeGreaterThanOrEqual(2);
+    });
+
+    it('rotates equally good coats when it is cold', () => {
+      const { tops, bottoms } = grid(3);
+      const coats = [1, 2].map(() => item({ category: 'outerwear', seasons: ['winter'], selected_color: '#808080' }));
+      const result = suggest([...tops, ...bottoms, ...coats], ctxAt(5), 6);
+      expect(new Set(idsOf(result, 'outerwear')).size).toBe(2);
+      for (const s of result) expect(s.outerwearMissing).toBeFalsy();
+    });
+
+    it('still uses the only pair of shoes everywhere', () => {
+      const { tops, bottoms } = grid(2);
+      const shoes = item({ category: 'shoes', selected_color: '#808080' });
+      const result = suggest([...tops, ...bottoms, shoes], ctxAt(20), 4);
+      expect(idsOf(result, 'shoes').every((id) => id === shoes.id)).toBe(true);
+    });
+
+    it('rotation never swaps in a clashing pair when a harmonious one is available', () => {
+      const { tops, bottoms } = grid(3);
+      const good = [1, 2].map(() => item({ category: 'shoes', selected_color: '#808080' }));
+      const loud = item({ category: 'shoes', selected_color: '#d62828', colors: ['#d62828', '#28d628', '#2828d6'] });
+      const result = suggest([...tops, ...bottoms, ...good, loud], ctxAt(20), 6);
+      expect(idsOf(result, 'shoes')).not.toContain(loud.id);
+    });
+
+    it('the accessory is left out when it would make the colours worse', () => {
+      const top = item({ category: 'top', selected_color: '#101010' });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const loudBag = item({ category: 'accessory', selected_color: '#d62828', colors: ['#d62828', '#28d628'] });
+      const result = suggest([top, bottom, loudBag], ctxAt(20));
+      expect(result[0].items.map((i) => i.id)).not.toContain(loudBag.id);
+    });
+
+    it('a harmless accessory is kept', () => {
+      const top = item({ category: 'top', selected_color: '#101010' });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const bag = item({ category: 'accessory', selected_color: '#808080' });
+      expect(suggest([top, bottom, bag], ctxAt(20))[0].items.map((i) => i.id)).toContain(bag.id);
+    });
+
+    it('scores stay consistent after rotation (breakdown matches the final pieces)', () => {
+      const { tops, bottoms } = grid(3);
+      const shoes = [1, 2, 3].map(() => item({ category: 'shoes', selected_color: '#808080' }));
+      for (const s of suggest([...tops, ...bottoms, ...shoes], ctxAt(20), 6)) {
+        const [top, bottom, , sh] = [
+          s.items.find((i) => i.category === 'top')!,
+          s.items.find((i) => i.category === 'bottom')!,
+          null,
+          s.items.find((i) => i.category === 'shoes') ?? null
+        ];
+        expect(computeScore(ctxAt(20), top, bottom, null, sh).total).toBe(s.score);
+      }
+    });
+  });
+
   describe('season tags are normalised', () => {
     const pass = (seasons: string[], t: number) => fitsWeather(item({ category: 'top', seasons }), ctxAt(t));
 
