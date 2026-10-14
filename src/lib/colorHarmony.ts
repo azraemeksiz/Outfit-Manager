@@ -74,8 +74,19 @@ export function hexToHsl(hex: string): [number, number, number] | null {
 
 const between = (x: number, lo: number, hi: number) => x >= lo && x <= hi;
 
-/** Neutral = achromatic (black/white/grey) or a near-neutral that works like one. */
+const classifyCache = new Map<string, ParsedColor | null>();
+const CLASSIFY_CACHE_LIMIT = 5000;
+
+/** Neutral = achromatic (black/white/grey) or a near-neutral that works like one. Results are cached per hex string. */
 export function classifyColor(hex: string): ParsedColor | null {
+  if (classifyCache.has(hex)) return classifyCache.get(hex) ?? null;
+  const result = classifyColorUncached(hex);
+  if (classifyCache.size >= CLASSIFY_CACHE_LIMIT) classifyCache.clear();
+  classifyCache.set(hex, result);
+  return result;
+}
+
+function classifyColorUncached(hex: string): ParsedColor | null {
   const hsl = hexToHsl(hex);
   if (!hsl) return null;
   const [h, s, l] = hsl;

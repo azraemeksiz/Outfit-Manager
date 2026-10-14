@@ -68,8 +68,22 @@ const SEASON_ALIASES: Record<string, CanonicalSeason> = {
   'tum sezon': 'all-season'
 };
 
+// Cached per seasons array (the same array is reused for every combination); the length guards in-place edits.
+const seasonCache = new WeakMap<object, { length: number; value: CanonicalSeason[] }>();
+const NO_SEASONS: CanonicalSeason[] = [];
+
 /** Canonical season tags of a piece: case, accents and common Turkish/English variants are folded; unknown values are dropped. */
 export function normalizeSeasons(item: Item): CanonicalSeason[] {
+  const raw = item.seasons;
+  if (!raw || raw.length === 0) return NO_SEASONS;
+  const cached = seasonCache.get(raw);
+  if (cached && cached.length === raw.length) return cached.value;
+  const value = normalizeSeasonsUncached(item);
+  seasonCache.set(raw, { length: raw.length, value });
+  return value;
+}
+
+function normalizeSeasonsUncached(item: Item): CanonicalSeason[] {
   const out = new Set<CanonicalSeason>();
   for (const raw of item.seasons ?? []) {
     const key = String(raw)
@@ -200,28 +214,47 @@ export function scoreColorAffinityBonus(outfitItems: Item[], ctx: RecommenderCon
   return Math.min(matches * 0.12, 0.3);
 }
 
+type PairStatus = 'recent_repeat' | 'co_occurrence';
+const historyIndexCache = new WeakMap<object, { now: number; length: number; map: Map<string, PairStatus> }>();
+
+const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+/**
+ * Every pair of pieces worn together in the last six months, built once per history instead of
+ * scanning the whole history for every top+bottom pair: 'recent_repeat' when worn together within
+ * the last 7 days, otherwise 'co_occurrence'. Malformed dates are skipped.
+ */
+function historyIndex(ctx: RecommenderContext): Map<string, PairStatus> {
+  const now = nowOf(ctx);
+  const cached = historyIndexCache.get(ctx.wornHistory);
+  if (cached && cached.now === now && cached.length === ctx.wornHistory.length) return cached.map;
+
+  const sevenDaysAgo = now - 7 * DAY_MS;
+  const sixMonthsAgo = now - 180 * DAY_MS;
+  const map = new Map<string, PairStatus>();
+  for (const entry of ctx.wornHistory) {
+    const entryTime = new Date(entry.date + 'T12:00:00').getTime();
+    if (Number.isNaN(entryTime) || entryTime < sixMonthsAgo) continue;
+    const ids = [...new Set((entry.outfits?.item_list || []).map((i) => i.id))];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const key = pairKey(ids[i], ids[j]);
+        if (entryTime >= sevenDaysAgo) map.set(key, 'recent_repeat');
+        else if (!map.has(key)) map.set(key, 'co_occurrence');
+      }
+    }
+  }
+  historyIndexCache.set(ctx.wornHistory, { now, length: ctx.wornHistory.length, map });
+  return map;
+}
+
 export function checkCombinationHistory(
   topId: number,
   bottomId: number,
   ctx: RecommenderContext
 ): CombinationStatus {
   if (!ctx.wornHistory.length) return 'none';
-  const now = nowOf(ctx);
-  const sevenDaysAgo = now - 7 * DAY_MS;
-  const sixMonthsAgo = now - 180 * DAY_MS;
-  let foundInSixMonths = false;
-
-  for (const entry of ctx.wornHistory) {
-    const entryTime = new Date(entry.date + 'T12:00:00').getTime();
-    if (Number.isNaN(entryTime)) continue; // malformed date: ignore the entry
-    if (entryTime < sixMonthsAgo) continue;
-    const ids: number[] = (entry.outfits?.item_list || []).map((i) => i.id);
-    if (ids.includes(topId) && ids.includes(bottomId)) {
-      if (entryTime >= sevenDaysAgo) return 'recent_repeat';
-      foundInSixMonths = true;
-    }
-  }
-  return foundInSixMonths ? 'co_occurrence' : 'none';
+  return historyIndex(ctx).get(pairKey(topId, bottomId)) ?? 'none';
 }
 
 /**
@@ -487,11 +520,21 @@ function rotateSidePieces(
   });
 }
 
+/**
+ * Above this many top+bottom pairs only the best pairs (scored without side pieces) get their
+ * jacket, shoes and accessory picked. Small and medium wardrobes are searched completely.
+ */
+export const PAIR_LIMIT = 400;
+
 export function generateOutfitCombinations(
   filtered: Item[],
-  ctx: RecommenderContext,
-  limit: number = DEFAULT_RESULT_LIMIT
+  ctxIn: RecommenderContext,
+  limit: number = DEFAULT_RESULT_LIMIT,
+  options: { pairLimit?: number } = {}
 ): Suggestion[] {
+  // Fix "now" once so every score and the history index see the same moment.
+  const ctx: RecommenderContext = { ...ctxIn, now: nowOf(ctxIn) };
+  const pairLimit = options.pairLimit ?? PAIR_LIMIT;
   const tops = filtered.filter((i) => i.category === 'top');
   const bottoms = filtered.filter((i) => i.category === 'bottom');
   const dresses = filtered.filter((i) => i.category === 'dress');
@@ -501,26 +544,33 @@ export function generateOutfitCombinations(
   const combinations: Suggestion[] = [];
   const needsOuterwear = outerwearMode(ctx) === 'required';
 
-  for (const top of tops) {
-    for (const bottom of bottoms) {
-      const bestOuterwear = pickComplement(outerwear, [top, bottom], ctx, 0.5);
-      const bestShoes = pickComplement(shoes, [top, bottom, bestOuterwear].filter((i): i is Item => !!i), ctx, 0.5);
-      const bestAccessory = pickOptionalAccessory(
-        accessories,
-        [top, bottom, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
-        ctx
-      );
+  let pairs: [Item, Item][] = tops.flatMap((top) => bottoms.map((bottom): [Item, Item] => [top, bottom]));
+  if (pairs.length > pairLimit) {
+    pairs = pairs
+      .map((pair) => ({ pair, base: computeScore(ctx, pair[0], pair[1], null, null, null).total }))
+      .sort((a, b) => b.base - a.base || a.pair[0].id - b.pair[0].id || a.pair[1].id - b.pair[1].id)
+      .slice(0, pairLimit)
+      .map((x) => x.pair);
+  }
 
-      const scoreData = computeScore(ctx, top, bottom, bestOuterwear, bestShoes, bestAccessory);
-      if (scoreData.total >= 30) {
-        combinations.push({
-          items: [top, bottom, bestOuterwear, bestShoes, bestAccessory].filter((i): i is Item => !!i),
-          score: scoreData.total,
-          scoreBreakdown: scoreData,
-          type: 'top+bottom',
-          outerwearMissing: needsOuterwear && !bestOuterwear
-        });
-      }
+  for (const [top, bottom] of pairs) {
+    const bestOuterwear = pickComplement(outerwear, [top, bottom], ctx, 0.5);
+    const bestShoes = pickComplement(shoes, [top, bottom, bestOuterwear].filter((i): i is Item => !!i), ctx, 0.5);
+    const bestAccessory = pickOptionalAccessory(
+      accessories,
+      [top, bottom, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
+      ctx
+    );
+
+    const scoreData = computeScore(ctx, top, bottom, bestOuterwear, bestShoes, bestAccessory);
+    if (scoreData.total >= 30) {
+      combinations.push({
+        items: [top, bottom, bestOuterwear, bestShoes, bestAccessory].filter((i): i is Item => !!i),
+        score: scoreData.total,
+        scoreBreakdown: scoreData,
+        type: 'top+bottom',
+        outerwearMissing: needsOuterwear && !bestOuterwear
+      });
     }
   }
 
