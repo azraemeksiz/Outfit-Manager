@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { buildUserStyleProfile, filterItems, generateOutfitCombinations } from '$lib/recommender';
+  import { buildUserStyleProfile, diagnoseEmpty, filterItems, generateOutfitCombinations } from '$lib/recommender';
   import type { RecommenderContext } from '$lib/recommender';
-  import { STYLES } from '$lib/styles';
+  import { STYLES, styleOccasionHint } from '$lib/styles';
   import type { StyleId } from '$lib/styles';
   import type { CalendarEntry, Item, Suggestion, UserStyleProfile } from '$lib/types';
 
@@ -15,6 +15,7 @@
   };
   let occasion = '';
   let style: StyleId | null = null;
+  let emptyMessage = '';
   let loading = false;
   let weatherLoading = false;
   let liveTemperature: number | null = null;
@@ -27,6 +28,14 @@
   let coldThreshold = 15;
   let heatThreshold = 25;
   let lightOuterwearMax: number | null = null;
+
+  const silhouetteLabels: Record<string, string> = {
+    fitted: 'Fitted',
+    regular: 'Regular',
+    relaxed: 'Relaxed',
+    oversized: 'Oversized',
+    contrast: 'Volume contrast'
+  };
 
   const harmonyLabels: Record<string, string> = {
     neutral: 'All neutrals',
@@ -144,7 +153,8 @@
     const ctx: RecommenderContext = {
       occasion,
       temperature,
-      coldThreshold,
+      // Settings validate cold < heat; this guards old saved values that overlap.
+      coldThreshold: Math.min(coldThreshold, heatThreshold),
       heatThreshold,
       lightOuterwearMax,
       style,
@@ -152,6 +162,7 @@
       wornHistory
     };
     suggestions = generateOutfitCombinations(filterItems(items, ctx), ctx);
+    emptyMessage = suggestions.length === 0 ? diagnoseEmpty(items, ctx).message : '';
     generated = true;
     loading = false;
   }
@@ -336,6 +347,12 @@
       </div>
     </div>
 
+    {#if styleOccasionHint(style, occasion).message}
+      <p class="text-xs font-bold text-amber-600 bg-amber-50 rounded-2xl px-4 py-3 mb-4">
+        💡 {styleOccasionHint(style, occasion).message}
+      </p>
+    {/if}
+
     <button on:click={generate} disabled={loading}
       class="w-full bg-pink-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-pink-100 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 mb-8">
       {loading ? 'GENERATING...' : '✨ GENERATE OUTFIT'}
@@ -346,7 +363,7 @@
         <div class="bg-white rounded-[24px] p-8 text-center shadow-sm border border-gray-50">
           <p class="text-2xl mb-2">😕</p>
           <p class="font-bold text-gray-700">No suitable outfits found.</p>
-          <p class="text-gray-400 text-sm mt-1">Try adding more clean items or changing the occasion.</p>
+          <p class="text-gray-400 text-sm mt-1">{emptyMessage || 'Try adding more clean items or changing the occasion.'}</p>
         </div>
       {:else}
         <div class="space-y-4">
@@ -367,13 +384,23 @@
                   🌤 Weather {suggestion.scoreBreakdown.weather}/40
                 </span>
                 <span class="text-[11px] font-bold bg-purple-50 text-purple-600 px-2.5 py-1 rounded-full">
-                  🎨 Color {suggestion.scoreBreakdown.color}/30
+                  🎨 Color {suggestion.scoreBreakdown.color}/{suggestion.scoreBreakdown.max.color}
                 </span>
                 <span class="text-[11px] font-bold bg-pink-50 text-pink-600 px-2.5 py-1 rounded-full">
-                  🌀 Pattern {suggestion.scoreBreakdown.pattern}/15
+                  🌀 Pattern {suggestion.scoreBreakdown.pattern}/{suggestion.scoreBreakdown.max.pattern}
                 </span>
+                {#if suggestion.scoreBreakdown.max.occasion > 0}
+                  <span class="text-[11px] font-bold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-full">
+                    🎯 {occasion} {suggestion.scoreBreakdown.occasion}/{suggestion.scoreBreakdown.max.occasion}
+                  </span>
+                {/if}
+                {#if suggestion.scoreBreakdown.max.silhouette > 0}
+                  <span class="text-[11px] font-bold bg-teal-50 text-teal-600 px-2.5 py-1 rounded-full">
+                    👖 Fit {suggestion.scoreBreakdown.silhouette}/{suggestion.scoreBreakdown.max.silhouette}{suggestion.scoreBreakdown.silhouetteType ? ` · ${silhouetteLabels[suggestion.scoreBreakdown.silhouetteType]}` : ' · not tagged'}
+                  </span>
+                {/if}
                 <span class="text-[11px] font-bold bg-green-50 text-green-600 px-2.5 py-1 rounded-full">
-                  ⏱ Freshness {suggestion.scoreBreakdown.history}/15
+                  ⏱ Freshness {suggestion.scoreBreakdown.history}/{suggestion.scoreBreakdown.max.history}
                 </span>
                 {#if suggestion.scoreBreakdown.combinationStatus === 'co_occurrence'}
                   <span class="text-[11px] font-bold bg-amber-50 text-amber-600 px-2.5 py-1 rounded-full">

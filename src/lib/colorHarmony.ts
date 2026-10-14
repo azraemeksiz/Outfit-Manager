@@ -45,10 +45,11 @@ export interface ParsedColor {
 }
 
 function parseHex(hex: string): [number, number, number] | null {
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(hex.trim());
   if (!m) return null;
   let v = m[1];
   if (v.length === 3) v = v.split('').map((c) => c + c).join('');
+  if (v.length === 8) v = v.slice(0, 6); // #rrggbbaa: the alpha channel is ignored
   return [parseInt(v.slice(0, 2), 16) / 255, parseInt(v.slice(2, 4), 16) / 255, parseInt(v.slice(4, 6), 16) / 255];
 }
 
@@ -73,8 +74,19 @@ export function hexToHsl(hex: string): [number, number, number] | null {
 
 const between = (x: number, lo: number, hi: number) => x >= lo && x <= hi;
 
-/** Neutral = achromatic (black/white/grey) or a near-neutral that works like one. */
+const classifyCache = new Map<string, ParsedColor | null>();
+const CLASSIFY_CACHE_LIMIT = 5000;
+
+/** Neutral = achromatic (black/white/grey) or a near-neutral that works like one. Results are cached per hex string. */
 export function classifyColor(hex: string): ParsedColor | null {
+  if (classifyCache.has(hex)) return classifyCache.get(hex) ?? null;
+  const result = classifyColorUncached(hex);
+  if (classifyCache.size >= CLASSIFY_CACHE_LIMIT) classifyCache.clear();
+  classifyCache.set(hex, result);
+  return result;
+}
+
+function classifyColorUncached(hex: string): ParsedColor | null {
   const hsl = hexToHsl(hex);
   if (!hsl) return null;
   const [h, s, l] = hsl;
@@ -144,20 +156,48 @@ export function classifyHarmony(hexes: string[]): HarmonyType | null {
   return circDist(a, b) >= COMPLEMENTARY_DEG ? 'complementary' : 'mixed';
 }
 
+/** Character of the chromatic colours: soft (pastel/muted), vivid (saturated mid-tones), a mix, or none (all neutral). */
+export type ToneType = 'none' | 'soft' | 'vivid' | 'mixed';
+
+/** Share of the colour score that comes from the tone table (only when a style provides one). */
+export const TONE_WEIGHT = 0.35;
+
+/** A chromatic colour is soft when it is light (pastel) or low in saturation (muted). */
+function isSoft(c: ParsedColor): boolean {
+  return c.l >= 72 || c.s < 40;
+}
+
+export function classifyTone(hexes: string[]): ToneType {
+  const chromatic = hexes
+    .map(classifyColor)
+    .filter((c): c is ParsedColor => c !== null && c.kind === 'chromatic');
+  if (!chromatic.length) return 'none';
+  const soft = chromatic.filter(isSoft).length;
+  if (soft === chromatic.length) return 'soft';
+  if (soft === 0) return 'vivid';
+  return 'mixed';
+}
+
 export interface OutfitColorResult {
   score: number;
   harmony: HarmonyType | null;
+  tone: ToneType | null;
 }
 
 /** A piece contributes at most this many colours to the outfit. */
 export const MAX_COLORS_PER_ITEM = 3;
 
 /**
- * The colours a piece contributes: its main (user-confirmed) colour first,
- * then the rest of its palette, without duplicates, at most MAX_COLORS_PER_ITEM.
+ * The colours a piece contributes: its main (user-confirmed) colour first, then, for a patterned
+ * piece only, the rest of its palette. Duplicates removed, at most MAX_COLORS_PER_ITEM.
+ * A solid piece counts only its main colour: extra colours detected from its photo are noise
+ * (shadows, lighting), not part of the design.
  */
 export function itemColors(item: Item): string[] {
-  const all = [item.selected_color, ...(item.colors ?? [])].filter((c): c is string => !!c);
+  const palette = item.is_patterned ? (item.colors ?? []) : [];
+  const all = [item.selected_color, ...palette, ...(item.selected_color ? [] : (item.colors ?? []).slice(0, 1))].filter(
+    (c): c is string => !!c
+  );
   const seen = new Set<string>();
   const unique: string[] = [];
   for (const c of all) {
@@ -175,10 +215,15 @@ export function itemColors(item: Item): string[] {
  */
 export function scoreOutfitColor(
   items: Item[],
-  scores: Partial<Record<HarmonyType, number>> = {}
+  scores: Partial<Record<HarmonyType, number>> = {},
+  toneScores?: Partial<Record<ToneType, number>>
 ): OutfitColorResult {
   const hexes = items.flatMap(itemColors);
   const harmony = classifyHarmony(hexes);
-  if (!harmony) return { score: 0.5, harmony: null };
-  return { score: scores[harmony] ?? DEFAULT_HARMONY_SCORES[harmony], harmony };
+  if (!harmony) return { score: 0.5, harmony: null, tone: null };
+  const tone = classifyTone(hexes);
+  const harmonyScore = scores[harmony] ?? DEFAULT_HARMONY_SCORES[harmony];
+  const toneScore = toneScores?.[tone];
+  const score = toneScore === undefined ? harmonyScore : harmonyScore * (1 - TONE_WEIGHT) + toneScore * TONE_WEIGHT;
+  return { score, harmony, tone };
 }

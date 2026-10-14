@@ -1,16 +1,22 @@
 <script lang="ts">
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
-  
+  import ColorPalette from '$lib/components/ColorPalette.svelte';
+  import { paletteToSave, togglePatterned } from '$lib/palette';
+
   const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
   let name = '';
   let category = 'top';
-  let color = '#3b82f6';
+  // Colour palette: first colour is the main one. A solid piece keeps one colour, a patterned one up to three.
+  let palette: string[] = ['#3b82f6'];
   let seasons: string[] = [];
   let occasions: string[] = [];
   let is_patterned = false;
+  let fit: string | null = null;
+  // Fit only makes sense for pieces that make up the silhouette.
+  $: showFit = ['top', 'bottom', 'dress', 'outerwear'].includes(category);
   let photoFile: File | null = null;
   let photoPreview: string | null = null;
   let uploading = false;
@@ -112,7 +118,7 @@ async function handleFileSelect(event: Event) {
             return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
           });
           if (detectedColors.length > 0) {
-            color = detectedColors[0];
+            palette = is_patterned ? togglePatterned([detectedColors[0]], true, detectedColors) : [detectedColors[0]];
             colorDetected = true;
           }
         } catch (e) {
@@ -121,6 +127,11 @@ async function handleFileSelect(event: Event) {
       };
       img.src = photoPreview;
     }
+  }
+
+  function togglePattern() {
+    is_patterned = !is_patterned;
+    palette = togglePatterned(palette, is_patterned, detectedColors);
   }
 
   async function uploadToCloudinary(file: File): Promise<string> {
@@ -168,11 +179,12 @@ async function handleFileSelect(event: Event) {
     const { error } = await supabase.from('items').insert([{
       name,
       category,
-      selected_color: color,
-      colors: detectedColors.length > 0 ? detectedColors : null,
+      ...paletteToSave(palette, is_patterned),
       seasons,
       occasions,
       is_patterned,
+      // Only sent when chosen, so adding items keeps working before the DB column exists.
+      ...(showFit && fit ? { fit } : {}),
       photo_url,
       user_id: user.id
     }]);
@@ -234,9 +246,26 @@ async function handleFileSelect(event: Event) {
           <option value="dress">Dress</option>
           <option value="outerwear">Outerwear</option>
           <option value="shoes">Shoes</option>
-          <option value="accessory">Accessory</option>
         </select>
       </div>
+
+      {#if showFit}
+        <div class="space-y-2">
+          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Fit (Optional)</label>
+          <div class="grid grid-cols-3 gap-2">
+            {#each [['slim', 'Slim'], ['regular', 'Regular'], ['loose', 'Loose']] as [value, label]}
+              <button
+                type="button"
+                on:click={() => (fit = fit === value ? null : value)}
+                class="py-3 rounded-2xl font-bold text-sm transition-all {fit === value ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+              >
+                {label}
+              </button>
+            {/each}
+          </div>
+          <p class="text-xs text-gray-400 ml-1">How it sits on the body: slim = close-fitting, loose = baggy or oversized.</p>
+        </div>
+      {/if}
 
       <div class="space-y-2">
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>
@@ -275,31 +304,19 @@ async function handleFileSelect(event: Event) {
             <span class="text-xs font-bold text-green-500">Auto-detected ✓</span>
           {/if}
         </div>
-        <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
-          <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
-          <div class="flex-1">
-            <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
-            {#if detectedColors.length > 1}
-              <div class="flex gap-2 mt-2">
-                {#each detectedColors as c}
-                  <button
-                    type="button"
-                    on:click={() => color = c}
-                    class="w-7 h-7 rounded-full border-2 transition-all {color === c ? 'border-pink-500 scale-110' : 'border-white shadow-sm'}"
-                    style="background-color: {c}"
-                  />
-                {/each}
-              </div>
-            {/if}
-          </div>
-        </div>
+        <ColorPalette bind:colors={palette} max={is_patterned ? 3 : 1} suggestions={detectedColors} />
+        <p class="text-xs text-gray-400 ml-1">
+          {is_patterned
+            ? 'Patterned: up to 3 colors count in the color theory, the first one is the main color.'
+            : 'Solid: only the main color counts. Switch to Patterned below for a multi-color piece.'}
+        </p>
       </div>
 
       <div class="space-y-2">
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Pattern</label>
         <button
           type="button"
-          on:click={() => is_patterned = !is_patterned}
+          on:click={togglePattern}
           class="w-full bg-gray-50 rounded-2xl p-4 font-bold text-sm transition-all {is_patterned ? 'text-pink-500 ring-2 ring-pink-400' : 'text-gray-400'}"
         >
           {is_patterned ? '✓ Patterned' : 'Solid'}

@@ -30,8 +30,12 @@
   });
 
   async function saveSettings() {
-    saving = true;
     message = '';
+    if (coldThreshold >= heatThreshold) {
+      message = 'Error: Cold threshold must be lower than the heat threshold.';
+      return;
+    }
+    saving = true;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { saving = false; return; }
 

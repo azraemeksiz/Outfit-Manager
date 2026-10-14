@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { computeScore, generateOutfitCombinations, filterItems } from './recommender';
+import {
+  checkCombinationHistory,
+  computeScore,
+  diagnoseEmpty,
+  filterItems,
+  fitsWeather,
+  generateOutfitCombinations,
+  scoreWeatherNorm
+} from './recommender';
 import type { RecommenderContext } from './recommender';
 import type { Item } from './types';
 
@@ -177,17 +185,243 @@ describe('recommender scenarios', () => {
       expect(ids).toContain(boots.id);
     });
 
-    it('drops a winter scarf (accessory) when it is hot', () => {
+    it('accessories are not part of the suggestions at all (belts, jewellery, bags have no model yet)', () => {
       const scarf = item({ category: 'accessory', seasons: ['winter'] });
       const bag = item({ category: 'accessory', seasons: [] });
-      const ids = usedIds([item({ category: 'top' }), item({ category: 'bottom' }), scarf, bag], ctxAt(30));
-      expect(ids).not.toContain(scarf.id);
+      const dress = item({ category: 'dress' });
+      for (const t of [5, 20, 30]) {
+        const result = suggest([item({ category: 'top' }), item({ category: 'bottom' }), dress, scarf, bag], ctxAt(t));
+        expect(result.length).toBeGreaterThan(0);
+        for (const s of result) {
+          expect(s.items.some((i) => i.category === 'accessory')).toBe(false);
+        }
+      }
+    });
+
+    it('a wardrobe of only accessories gives no outfit, and says why', () => {
+      const bag = item({ category: 'accessory' });
+      expect(suggest([bag], ctxAt(20))).toEqual([]);
+      expect(diagnoseEmpty([bag], ctxAt(20)).reason).toBe('missing-category');
     });
 
     it('does not filter by weather for Indoor', () => {
       const winterTop = item({ category: 'top', seasons: ['winter'] });
       const ids = usedIds([winterTop, item({ category: 'bottom' })], ctxAt(30, { occasion: 'Indoor' }));
       expect(ids).toContain(winterTop.id);
+    });
+  });
+
+  describe('mild weather: pieces from the wrong end of the season range are penalised softly', () => {
+    const weather = (seasons: string[], t: number) =>
+      scoreWeatherNorm(item({ category: 'top', seasons }), ctxAt(t)); // cold 15, heat 25
+
+    it('summer-only pieces score below all-season ones just above the cold threshold', () => {
+      expect(weather(['summer'], 16)).toBeLessThan(weather(['all-season'], 16));
+    });
+
+    it('winter-only pieces score below all-season ones just below the heat threshold', () => {
+      expect(weather(['winter'], 24)).toBeLessThan(weather(['all-season'], 24));
+    });
+
+    it('the penalty fades towards the matching end: summer gets better as it warms up', () => {
+      expect(weather(['summer'], 24)).toBeGreaterThan(weather(['summer'], 16));
+      expect(weather(['winter'], 16)).toBeGreaterThan(weather(['winter'], 24));
+    });
+
+    it('spring-fall pieces stay at the top in the whole mild range, tags with both ends count as all-season', () => {
+      for (const t of [15, 18, 22, 25]) expect(weather(['spring-fall'], t)).toBe(1);
+      expect(weather(['summer', 'winter'], 20)).toBe(weather(['all-season'], 20));
+    });
+
+    it('does not ban: a summer-only piece is still suggested at 16°C when it is all there is', () => {
+      const shorts = item({ category: 'bottom', seasons: ['summer'] });
+      expect(suggest([item({ category: 'top' }), shorts], ctxAt(16)).length).toBe(1);
+    });
+
+    it('prefers all-season trousers over shorts at 16°C', () => {
+      const shorts = item({ category: 'bottom', seasons: ['summer'], selected_color: '#808080' });
+      const jeans = item({ category: 'bottom', seasons: ['all-season'], selected_color: '#808080' });
+      const top = item({ category: 'top', selected_color: '#808080' });
+      expect(suggest([top, shorts, jeans], ctxAt(16))[0].items.map((i) => i.id)).toContain(jeans.id);
+    });
+  });
+
+  describe('side pieces (outerwear, shoes)', () => {
+    const grid = (n: number) => ({
+      tops: Array.from({ length: n }, () => item({ category: 'top', selected_color: '#808080' })),
+      bottoms: Array.from({ length: n }, () => item({ category: 'bottom', selected_color: '#101010' }))
+    });
+    const idsOf = (list: { items: Item[] }[], category: string) =>
+      list.map((s) => s.items.find((i) => i.category === category)?.id);
+
+    it('rotates equally good shoes across the suggestions instead of repeating one pair', () => {
+      const { tops, bottoms } = grid(3);
+      const shoes = [1, 2, 3].map(() => item({ category: 'shoes', selected_color: '#808080' }));
+      const result = suggest([...tops, ...bottoms, ...shoes], ctxAt(20), 6);
+      expect(new Set(idsOf(result, 'shoes')).size).toBeGreaterThanOrEqual(2);
+    });
+
+    it('rotates equally good coats when it is cold', () => {
+      const { tops, bottoms } = grid(3);
+      const coats = [1, 2].map(() => item({ category: 'outerwear', seasons: ['winter'], selected_color: '#808080' }));
+      const result = suggest([...tops, ...bottoms, ...coats], ctxAt(5), 6);
+      expect(new Set(idsOf(result, 'outerwear')).size).toBe(2);
+      for (const s of result) expect(s.outerwearMissing).toBeFalsy();
+    });
+
+    it('still uses the only pair of shoes everywhere', () => {
+      const { tops, bottoms } = grid(2);
+      const shoes = item({ category: 'shoes', selected_color: '#808080' });
+      const result = suggest([...tops, ...bottoms, shoes], ctxAt(20), 4);
+      expect(idsOf(result, 'shoes').every((id) => id === shoes.id)).toBe(true);
+    });
+
+    it('rotation never swaps in a clashing pair when a harmonious one is available', () => {
+      const { tops, bottoms } = grid(3);
+      const good = [1, 2].map(() => item({ category: 'shoes', selected_color: '#808080' }));
+      const loud = item({
+        category: 'shoes',
+        selected_color: '#d62828',
+        is_patterned: true,
+        colors: ['#d62828', '#28d628', '#2828d6']
+      });
+      const result = suggest([...tops, ...bottoms, ...good, loud], ctxAt(20), 6);
+      expect(idsOf(result, 'shoes')).not.toContain(loud.id);
+    });
+
+    it('scores stay consistent after rotation (breakdown matches the final pieces)', () => {
+      const { tops, bottoms } = grid(3);
+      const shoes = [1, 2, 3].map(() => item({ category: 'shoes', selected_color: '#808080' }));
+      for (const s of suggest([...tops, ...bottoms, ...shoes], ctxAt(20), 6)) {
+        const [top, bottom, , sh] = [
+          s.items.find((i) => i.category === 'top')!,
+          s.items.find((i) => i.category === 'bottom')!,
+          null,
+          s.items.find((i) => i.category === 'shoes') ?? null
+        ];
+        expect(computeScore(ctxAt(20), top, bottom, null, sh).total).toBe(s.score);
+      }
+    });
+  });
+
+  describe('season tags are normalised', () => {
+    const pass = (seasons: string[], t: number) => fitsWeather(item({ category: 'top', seasons }), ctxAt(t));
+
+    it('capitalised English values work', () => {
+      expect(pass(['Summer'], 30)).toBe(true);
+      expect(pass(['Winter'], 30)).toBe(false);
+      expect(pass(['Autumn'], 30)).toBe(true);
+    });
+
+    it('Turkish values work', () => {
+      expect(pass(['yaz'], 30)).toBe(true);
+      expect(pass(['kış'], 30)).toBe(false);
+      expect(pass(['kış'], 5)).toBe(true);
+    });
+
+    it('unknown values are ignored: the piece is treated as untagged', () => {
+      expect(pass(['whatever'], 30)).toBe(true);
+      expect(pass(['whatever'], 5)).toBe(true);
+    });
+  });
+
+  describe('occasion: an explicit match is rewarded, never required', () => {
+    const base = (over: Partial<Item>) => item({ category: 'top', selected_color: '#101010', ...over });
+
+    it('a piece tagged for the selected occasion outranks an untagged one with the same look', () => {
+      const tagged = base({ occasions: ['Formal'] });
+      const untagged = base({ occasions: [] });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff', occasions: ['Formal'] });
+      const result = suggest([untagged, tagged, bottom], ctxAt(20, { occasion: 'Formal' }));
+      expect(result.length).toBe(2);
+      expect(result[0].items.map((i) => i.id)).toContain(tagged.id);
+      expect(result[0].score).toBeGreaterThan(result[1].score);
+    });
+
+    it('untagged pieces are still allowed (soft preference, no ban)', () => {
+      const untagged = base({ occasions: [] });
+      const bottom = item({ category: 'bottom', occasions: [] });
+      expect(suggest([untagged, bottom], ctxAt(20, { occasion: 'Formal' })).length).toBe(1);
+    });
+
+    it('without an occasion there is no occasion criterion', () => {
+      const b = computeScore(ctxAt(20), base({}), item({ category: 'bottom' }), null, null);
+      expect(b.max.occasion).toBe(0);
+      expect(b.occasion).toBe(0);
+    });
+
+    it('with an occasion the criteria still sum to 100', () => {
+      const b = computeScore(ctxAt(20, { occasion: 'Casual' }), base({ occasions: ['Casual'] }), item({ category: 'bottom' }), null, null);
+      const m = b.max;
+      expect(m.weather + m.color + m.pattern + m.silhouette + m.history + m.occasion).toBe(100);
+      expect(m.occasion).toBeGreaterThan(0);
+    });
+
+    it('with a style and an occasion the criteria also sum to 100', () => {
+      const b = computeScore(ctxAt(20, { occasion: 'Casual', style: 'minimal' }), base({}), item({ category: 'bottom' }), null, null);
+      const m = b.max;
+      expect(m.weather + m.color + m.pattern + m.silhouette + m.history + m.occasion).toBe(100);
+    });
+  });
+
+  describe('explaining an empty result', () => {
+    const diagnose = (items: Item[], ctx: RecommenderContext) => diagnoseEmpty(items, ctx);
+
+    it('no clean items at all', () => {
+      expect(diagnose([], ctxAt(20)).reason).toBe('no-items');
+    });
+
+    it('everything is tagged for another occasion', () => {
+      const items = [
+        item({ category: 'top', occasions: ['Sport'] }),
+        item({ category: 'bottom', occasions: ['Sport'] })
+      ];
+      const d = diagnose(items, ctxAt(20, { occasion: 'Formal' }));
+      expect(d.reason).toBe('occasion');
+      expect(d.message).toContain('Formal');
+    });
+
+    it('the weather removes the only pieces', () => {
+      const items = [item({ category: 'top', seasons: ['winter'] }), item({ category: 'bottom', seasons: ['winter'] })];
+      const d = diagnose(items, ctxAt(30));
+      expect(d.reason).toBe('weather');
+      expect(d.message).toContain('30');
+    });
+
+    it('a basic category is missing', () => {
+      const d = diagnose([item({ category: 'top' })], ctxAt(20));
+      expect(d.reason).toBe('missing-category');
+      expect(d.message.toLowerCase()).toContain('bottom');
+    });
+
+    it('a diagnosis is only meaningful when the result is empty: a normal wardrobe is not explained away', () => {
+      const items = [item({ category: 'top' }), item({ category: 'bottom' })];
+      expect(suggest(items, ctxAt(20)).length).toBe(1);
+      expect(diagnose(items, ctxAt(20)).reason).toBe('unknown');
+    });
+  });
+
+  describe('robustness', () => {
+    it('skips a worn-history entry with a malformed date instead of counting it', () => {
+      const entry = { date: 'garbage', is_worn: true, outfits: { item_list: [{ id: 1 }, { id: 2 }] } };
+      const status = checkCombinationHistory(1, 2, ctxAt(20, { wornHistory: [entry as any] }));
+      expect(status).toBe('none');
+    });
+
+    it('chooses the same pieces whatever the wardrobe order (ties go to the lowest id)', () => {
+      const top = item({ category: 'top' });
+      const bottom = item({ category: 'bottom' });
+      const shoesA = item({ category: 'shoes', selected_color: '#808080' });
+      const shoesB = item({ category: 'shoes', selected_color: '#808080' });
+      const pick = (list: Item[]) => suggest(list, ctxAt(20))[0].items.find((i) => i.category === 'shoes')!.id;
+      expect(pick([top, bottom, shoesA, shoesB])).toBe(pick([shoesB, shoesA, bottom, top]));
+      expect(pick([top, bottom, shoesA, shoesB])).toBe(Math.min(shoesA.id, shoesB.id));
+    });
+
+    it('returns the same top list whatever the wardrobe order', () => {
+      const wardrobe = [1, 2, 3].flatMap(() => [item({ category: 'top' }), item({ category: 'bottom' })]);
+      const ids = (list: Item[]) => suggest(list, ctxAt(20)).map((s) => s.items.map((i) => i.id).join('-'));
+      expect(ids(wardrobe)).toEqual(ids([...wardrobe].reverse()));
     });
   });
 
@@ -259,6 +493,63 @@ describe('recommender scenarios', () => {
       expect(total(neutralOutfit(), null)).toBeGreaterThanOrEqual(total(loudOutfit(), null));
     });
 
+    it('pattern tolerance follows the style: minimal prefers solids, maximalist prefers a print', () => {
+      const solid = item({ category: 'top', selected_color: '#101010' });
+      const print = item({ category: 'top', selected_color: '#101010', is_patterned: true });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const total = (top: Item, style: RecommenderContext['style']) =>
+        computeScore(ctxAt(20, { style }), top, bottom, null, null).total;
+      expect(total(solid, 'minimal')).toBeGreaterThan(total(print, 'minimal'));
+      expect(total(print, 'maximalist')).toBeGreaterThan(total(solid, 'maximalist'));
+    });
+
+    it('without a style the old pattern rule is unchanged (one print beats two solids)', () => {
+      const solid = item({ category: 'top', selected_color: '#101010' });
+      const print = item({ category: 'top', selected_color: '#101010', is_patterned: true });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const total = (top: Item) => computeScore(ctxAt(20), top, bottom, null, null).total;
+      expect(total(print)).toBeGreaterThanOrEqual(total(solid));
+    });
+
+    describe('silhouette (fit)', () => {
+      const fitted = (topFit: string | null, bottomFit: string | null) => ({
+        top: item({ category: 'top', selected_color: '#101010', fit: topFit }),
+        bottom: item({ category: 'bottom', selected_color: '#ffffff', fit: bottomFit })
+      });
+      const total = (p: { top: Item; bottom: Item }, style: RecommenderContext['style']) =>
+        computeScore(ctxAt(20, { style }), p.top, p.bottom, null, null).total;
+
+      it('streetwear prefers loose over slim; girl casual prefers fitted over oversized', () => {
+        expect(total(fitted('loose', 'loose'), 'streetwear')).toBeGreaterThan(total(fitted('slim', 'slim'), 'streetwear'));
+        expect(total(fitted('slim', 'slim'), 'girl-casual')).toBeGreaterThan(total(fitted('loose', 'loose'), 'girl-casual'));
+      });
+
+      it('fit is ignored when no style is selected', () => {
+        expect(total(fitted('loose', 'loose'), null)).toBe(total(fitted('slim', 'slim'), null));
+      });
+
+      it('missing fits are neutral: they are never the best or the worst for a style', () => {
+        const unknown = total(fitted(null, null), 'streetwear');
+        expect(unknown).toBeLessThan(total(fitted('loose', 'loose'), 'streetwear'));
+        expect(unknown).toBeGreaterThan(total(fitted('slim', 'slim'), 'streetwear'));
+      });
+
+      it('reports the silhouette type and the maxima of the criteria in the breakdown', () => {
+        const p = fitted('loose', 'slim');
+        const b = computeScore(ctxAt(20, { style: 'streetwear' }), p.top, p.bottom, null, null);
+        expect(b.silhouetteType).toBe('contrast');
+        expect(b.max.weather + b.max.color + b.max.pattern + b.max.silhouette + b.max.history + b.max.occasion).toBe(100);
+        const none = computeScore(ctxAt(20), p.top, p.bottom, null, null);
+        expect(none.max.silhouette).toBe(0);
+        expect(none.max.weather + none.max.color + none.max.pattern + none.max.history + none.max.occasion).toBe(100);
+      });
+
+      it('a style never removes an outfit because of its fit', () => {
+        const items = [fitted('loose', 'loose').top, fitted('loose', 'loose').bottom];
+        expect(suggest(items, ctxAt(20, { style: 'minimal' })).length).toBe(1);
+      });
+    });
+
     it('never filters anything out: a loud outfit is still suggested for minimal', () => {
       const result = suggest(loudOutfit(), ctxAt(20, { style: 'minimal' }));
       expect(result.length).toBeGreaterThan(0);
@@ -292,25 +583,15 @@ describe('recommender scenarios', () => {
       expect(ids).not.toContain(green.id);
     });
 
-    it('does not pick a second loud colour when a neutral accessory exists', () => {
-      const redTop = item({ category: 'top', selected_color: '#d62828' });
-      const bottom = item({ category: 'bottom', selected_color: '#101010' });
-      const greenBag = item({ category: 'accessory', selected_color: '#28d628' });
-      const greyBag = item({ category: 'accessory', selected_color: '#808080' });
-      const ids = suggest([redTop, bottom, greenBag, greyBag], ctxAt(20)).flatMap((s) => s.items.map((i) => i.id));
-      expect(ids).toContain(greyBag.id);
-      expect(ids).not.toContain(greenBag.id);
-    });
-
     it('reports the harmony type in the score breakdown', () => {
       const [top, bottom] = outfit();
       expect(computeScore(ctxAt(20), top, bottom, null, null).colorHarmony).toBe('neutral');
     });
 
-    it('scores dresses with the same colour model (a clashing accessory lowers the score)', () => {
+    it('scores dresses with the same colour model (clashing shoes lower the score)', () => {
       const dress = item({ category: 'dress', selected_color: '#d62828' });
-      const calm = computeScore(ctxAt(20), null, dress, null, null, item({ category: 'accessory', selected_color: '#101010' }), true);
-      const loud = computeScore(ctxAt(20), null, dress, null, null, item({ category: 'accessory', selected_color: '#28d628' }), true);
+      const calm = computeScore(ctxAt(20), null, dress, null, item({ category: 'shoes', selected_color: '#101010' }), true);
+      const loud = computeScore(ctxAt(20), null, dress, null, item({ category: 'shoes', selected_color: '#28d628' }), true);
       expect(calm.total).toBeGreaterThan(loud.total);
     });
   });
@@ -337,5 +618,4 @@ describe('recommender scenarios', () => {
     expect(suggest([], ctxAt(20))).toEqual([]);
   });
 
-  it.todo('returns an explanatory reason when the result is empty (needs result shape from Stage 5)');
 });

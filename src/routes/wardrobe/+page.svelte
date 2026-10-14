@@ -7,7 +7,8 @@
   let deletingId: number | null = null;
   let activeFilter = 'All';
 
-  const filters = ['All', 'Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Accessory'];
+  // Accessories are no longer added or suggested; old ones stay visible under "All".
+  const filters = ['All', 'Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes'];
 
   const statusCycle = ['Clean', 'Dirty', 'Laundry', 'Drying'];
   const statusColors: Record<string, string> = {
