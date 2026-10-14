@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { checkCombinationHistory, computeScore, diagnoseEmpty, generateOutfitCombinations, filterItems } from './recommender';
+import {
+  checkCombinationHistory,
+  computeScore,
+  diagnoseEmpty,
+  filterItems,
+  fitsWeather,
+  generateOutfitCombinations,
+  scoreWeatherNorm
+} from './recommender';
 import type { RecommenderContext } from './recommender';
 import type { Item } from './types';
 
@@ -188,6 +196,71 @@ describe('recommender scenarios', () => {
       const winterTop = item({ category: 'top', seasons: ['winter'] });
       const ids = usedIds([winterTop, item({ category: 'bottom' })], ctxAt(30, { occasion: 'Indoor' }));
       expect(ids).toContain(winterTop.id);
+    });
+  });
+
+  describe('mild weather: pieces from the wrong end of the season range are penalised softly', () => {
+    const weather = (seasons: string[], t: number) =>
+      scoreWeatherNorm(item({ category: 'top', seasons }), ctxAt(t)); // cold 15, heat 25
+
+    it('summer-only pieces score below all-season ones just above the cold threshold', () => {
+      expect(weather(['summer'], 16)).toBeLessThan(weather(['all-season'], 16));
+    });
+
+    it('winter-only pieces score below all-season ones just below the heat threshold', () => {
+      expect(weather(['winter'], 24)).toBeLessThan(weather(['all-season'], 24));
+    });
+
+    it('the penalty fades towards the matching end: summer gets better as it warms up', () => {
+      expect(weather(['summer'], 24)).toBeGreaterThan(weather(['summer'], 16));
+      expect(weather(['winter'], 16)).toBeGreaterThan(weather(['winter'], 24));
+    });
+
+    it('spring-fall pieces stay at the top in the whole mild range, tags with both ends count as all-season', () => {
+      for (const t of [15, 18, 22, 25]) expect(weather(['spring-fall'], t)).toBe(1);
+      expect(weather(['summer', 'winter'], 20)).toBe(weather(['all-season'], 20));
+    });
+
+    it('does not ban: a summer-only piece is still suggested at 16°C when it is all there is', () => {
+      const shorts = item({ category: 'bottom', seasons: ['summer'] });
+      expect(suggest([item({ category: 'top' }), shorts], ctxAt(16)).length).toBe(1);
+    });
+
+    it('prefers all-season trousers over shorts at 16°C', () => {
+      const shorts = item({ category: 'bottom', seasons: ['summer'], selected_color: '#808080' });
+      const jeans = item({ category: 'bottom', seasons: ['all-season'], selected_color: '#808080' });
+      const top = item({ category: 'top', selected_color: '#808080' });
+      expect(suggest([top, shorts, jeans], ctxAt(16))[0].items.map((i) => i.id)).toContain(jeans.id);
+    });
+
+    it('the accessory choice looks at the weather: no winter scarf at 24°C when a bag exists', () => {
+      const scarf = item({ category: 'accessory', seasons: ['winter'], selected_color: '#808080' });
+      const bag = item({ category: 'accessory', seasons: ['all-season'], selected_color: '#808080' });
+      const ids = suggest([item({ category: 'top' }), item({ category: 'bottom' }), scarf, bag], ctxAt(24))
+        .flatMap((s) => s.items.map((i) => i.id));
+      expect(ids).toContain(bag.id);
+      expect(ids).not.toContain(scarf.id);
+    });
+  });
+
+  describe('season tags are normalised', () => {
+    const pass = (seasons: string[], t: number) => fitsWeather(item({ category: 'top', seasons }), ctxAt(t));
+
+    it('capitalised English values work', () => {
+      expect(pass(['Summer'], 30)).toBe(true);
+      expect(pass(['Winter'], 30)).toBe(false);
+      expect(pass(['Autumn'], 30)).toBe(true);
+    });
+
+    it('Turkish values work', () => {
+      expect(pass(['yaz'], 30)).toBe(true);
+      expect(pass(['kış'], 30)).toBe(false);
+      expect(pass(['kış'], 5)).toBe(true);
+    });
+
+    it('unknown values are ignored: the piece is treated as untagged', () => {
+      expect(pass(['whatever'], 30)).toBe(true);
+      expect(pass(['whatever'], 5)).toBe(true);
     });
   });
 

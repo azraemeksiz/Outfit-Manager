@@ -45,6 +45,48 @@ export function buildUserStyleProfile(history: CalendarEntry[]): UserStyleProfil
   return { patternAffinity: patternCount / allItems.length, colorAffinities };
 }
 
+type CanonicalSeason = 'summer' | 'winter' | 'spring-fall' | 'all-season';
+
+const SEASON_ALIASES: Record<string, CanonicalSeason> = {
+  summer: 'summer',
+  yaz: 'summer',
+  yazlik: 'summer',
+  winter: 'winter',
+  kis: 'winter',
+  kislik: 'winter',
+  'spring-fall': 'spring-fall',
+  'spring/fall': 'spring-fall',
+  spring: 'spring-fall',
+  fall: 'spring-fall',
+  autumn: 'spring-fall',
+  ilkbahar: 'spring-fall',
+  sonbahar: 'spring-fall',
+  mevsimlik: 'spring-fall',
+  'all-season': 'all-season',
+  'all season': 'all-season',
+  all: 'all-season',
+  'tum sezon': 'all-season'
+};
+
+/** Canonical season tags of a piece: case, accents and common Turkish/English variants are folded; unknown values are dropped. */
+export function normalizeSeasons(item: Item): CanonicalSeason[] {
+  const out = new Set<CanonicalSeason>();
+  for (const raw of item.seasons ?? []) {
+    const key = String(raw)
+      .trim()
+      .toLowerCase()
+      .replace(/ı/g, 'i')
+      .replace(/ş/g, 's')
+      .replace(/ü/g, 'u')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/ğ/g, 'g');
+    const canonical = SEASON_ALIASES[key];
+    if (canonical) out.add(canonical);
+  }
+  return [...out];
+}
+
 /** Degrees above the cold threshold where a light jacket is still worth adding. */
 export const LIGHT_OUTERWEAR_BUFFER = 5;
 
@@ -76,7 +118,7 @@ export function fitsWeather(item: Item, ctx: RecommenderContext): boolean {
   if (item.category === 'outerwear') {
     const mode = outerwearMode(ctx);
     if (mode === 'none') return false;
-    const seasons = item.seasons || [];
+    const seasons = normalizeSeasons(item);
     if (seasons.length === 0 || seasons.includes('all-season')) return true;
     // required (cold): anything warm enough; light (cool): a winter-only coat is too heavy.
     return mode === 'required'
@@ -89,7 +131,7 @@ export function fitsWeather(item: Item, ctx: RecommenderContext): boolean {
   const hot = ctx.temperature !== null && ctx.temperature > ctx.heatThreshold;
   const cold = ctx.temperature !== null && ctx.temperature < ctx.coldThreshold;
 
-  const seasons = item.seasons || [];
+  const seasons = normalizeSeasons(item);
   if (seasons.length === 0 || seasons.includes('all-season')) return true;
   const suitsWarm = seasons.includes('summer') || seasons.includes('spring-fall');
   const suitsCool = seasons.includes('winter') || seasons.includes('spring-fall');
@@ -111,7 +153,7 @@ export function filterItems(allItems: Item[], ctx: RecommenderContext): Item[] {
 export function scoreWeatherNorm(item: Item, ctx: RecommenderContext): number {
   if (ctx.occasion === 'Indoor') return 0.5;
   if (ctx.temperature === null) return 0.5;
-  const seasons = item.seasons || [];
+  const seasons = normalizeSeasons(item);
   if (seasons.length === 0 || seasons.includes('all-season')) return 0.7;
   const hot = ctx.temperature > ctx.heatThreshold;
   const cold = ctx.temperature < ctx.coldThreshold;
@@ -128,10 +170,21 @@ export function scoreWeatherNorm(item: Item, ctx: RecommenderContext): number {
     if (hasSpringFall) return 0.4;
     if (hasSummer) return 0.0;
   }
+  // Mild weather (between the thresholds).
   if (hasSpringFall) return 1.0;
-  if (hasWinter || hasSummer) return 0.7;
+  if (hasSummer && hasWinter) return 0.7; // covers both ends, like all-season
+  // A one-ended piece is penalised softly where it is far from its end, fading towards its end:
+  // summer-only goes from MILD_FAR to MILD_NEAR as it warms up, winter-only the other way round.
+  const span = ctx.heatThreshold - ctx.coldThreshold;
+  const frac = span > 0 ? Math.min(Math.max((ctx.temperature - ctx.coldThreshold) / span, 0), 1) : 0.5;
+  if (hasSummer) return MILD_FAR + (MILD_NEAR - MILD_FAR) * frac;
+  if (hasWinter) return MILD_FAR + (MILD_NEAR - MILD_FAR) * (1 - frac);
   return 0.5;
 }
+
+/** Mild-weather score of a one-ended (summer-only / winter-only) piece at the far end of the range and at its own end. */
+export const MILD_FAR = 0.35;
+export const MILD_NEAR = 0.9;
 
 export function scorePatternNorm(item1: Item | null, item2: Item | null, ctx: RecommenderContext): number {
   if (!item1 || !item2) return 0.75;
@@ -387,7 +440,7 @@ export function generateOutfitCombinations(
         accessories,
         [top, bottom, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
         ctx,
-        0
+        0.5
       );
 
       const scoreData = computeScore(ctx, top, bottom, bestOuterwear, bestShoes, bestAccessory);
@@ -410,7 +463,7 @@ export function generateOutfitCombinations(
       accessories,
       [dress, bestOuterwear, bestShoes].filter((i): i is Item => !!i),
       ctx,
-      0
+      0.5
     );
 
     const scoreData = computeScore(ctx, null, dress, bestOuterwear, bestShoes, bestAccessory, true);
