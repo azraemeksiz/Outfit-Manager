@@ -3,6 +3,8 @@
   import { supabase } from '$lib/supabase';
   import { buildUserStyleProfile, filterItems, generateOutfitCombinations } from '$lib/recommender';
   import type { RecommenderContext } from '$lib/recommender';
+  import { STYLES } from '$lib/styles';
+  import type { StyleId } from '$lib/styles';
   import type { CalendarEntry, Item, Suggestion, UserStyleProfile } from '$lib/types';
 
   let items: Item[] = [];
@@ -12,6 +14,7 @@
     colorAffinities: []
   };
   let occasion = '';
+  let style: StyleId | null = null;
   let loading = false;
   let weatherLoading = false;
   let liveTemperature: number | null = null;
@@ -144,6 +147,7 @@
       coldThreshold,
       heatThreshold,
       lightOuterwearMax,
+      style,
       userProfile,
       wornHistory
     };
@@ -306,6 +310,27 @@
             class="px-5 py-2 rounded-2xl font-bold text-sm transition-all {occasion === occ ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}"
           >
             {occ === '' ? 'Any' : occ}
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-[24px] p-6 mb-6 shadow-sm border border-gray-50">
+      <p class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Today's style (Optional)</p>
+      <p class="text-xs text-gray-400 mb-3">Changes how colors are judged. It never hides an outfit.</p>
+      <div class="flex gap-3 flex-wrap">
+        <button
+          on:click={() => (style = null)}
+          class="px-5 py-2 rounded-2xl font-bold text-sm transition-all {style === null ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}"
+        >
+          Any
+        </button>
+        {#each STYLES as s}
+          <button
+            on:click={() => (style = s.id)}
+            class="px-5 py-2 rounded-2xl font-bold text-sm transition-all {style === s.id ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}"
+          >
+            {s.emoji} {s.label}
           </button>
         {/each}
       </div>

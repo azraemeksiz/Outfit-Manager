@@ -1,4 +1,6 @@
 import { scoreOutfitColor } from './colorHarmony';
+import { colorScoresForStyle } from './styles';
+import type { StyleId } from './styles';
 import type {
   CalendarEntry,
   CombinationStatus,
@@ -14,6 +16,8 @@ export interface RecommenderContext {
   temperature: number | null;
   coldThreshold: number;
   heatThreshold: number;
+  /** Style picked for today; null/undefined = no style (neutral colour table). */
+  style?: StyleId | null;
   /** Highest temperature (°C) where a light jacket is still added; defaults to coldThreshold + LIGHT_OUTERWEAR_BUFFER. */
   lightOuterwearMax?: number | null;
   userProfile: UserStyleProfile;
@@ -198,7 +202,7 @@ export function computeScore(
     : 0.5;
 
   const affinityBonus = scoreColorAffinityBonus(allItems, ctx);
-  const colorResult = scoreOutfitColor(allItems);
+  const colorResult = scoreOutfitColor(allItems, colorScoresForStyle(ctx.style));
   const c = Math.min(1.0, colorResult.score + affinityBonus);
 
   const p = isDress ? 0.75 : scorePatternNorm(top, bottom, ctx);
@@ -251,7 +255,7 @@ function pickBest(list: Item[], score: (item: Item) => number): Item | null {
 function pickComplement(candidates: Item[], base: Item[], ctx: RecommenderContext, weatherWeight: number): Item | null {
   return pickBest(
     candidates,
-    (c) => scoreOutfitColor([...base, c]).score + weatherWeight * scoreWeatherNorm(c, ctx)
+    (c) => scoreOutfitColor([...base, c], colorScoresForStyle(ctx.style)).score + weatherWeight * scoreWeatherNorm(c, ctx)
   );
 }
 

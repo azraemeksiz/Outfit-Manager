@@ -233,6 +233,49 @@ describe('recommender scenarios', () => {
     });
   });
 
+  describe('daily style', () => {
+    const neutralOutfit = () => [
+      item({ category: 'top', selected_color: '#000000' }),
+      item({ category: 'bottom', selected_color: '#ffffff' })
+    ];
+    const loudOutfit = () => [
+      item({ category: 'top', selected_color: '#d62828' }),
+      item({ category: 'bottom', selected_color: '#28d6d6' })
+    ];
+    const total = (items: Item[], style: RecommenderContext['style']) => {
+      const [top, bottom] = items;
+      return computeScore(ctxAt(20, { style }), top, bottom, null, null).total;
+    };
+
+    it('minimal ranks an all-neutral outfit above a loud one', () => {
+      expect(total(neutralOutfit(), 'minimal')).toBeGreaterThan(total(loudOutfit(), 'minimal'));
+    });
+
+    it('maximalist ranks a loud outfit above an all-neutral one', () => {
+      expect(total(loudOutfit(), 'maximalist')).toBeGreaterThan(total(neutralOutfit(), 'maximalist'));
+    });
+
+    it('selecting no style behaves like before (neutral not below complementary)', () => {
+      expect(total(neutralOutfit(), null)).toBeGreaterThanOrEqual(total(loudOutfit(), null));
+    });
+
+    it('never filters anything out: a loud outfit is still suggested for minimal', () => {
+      const result = suggest(loudOutfit(), ctxAt(20, { style: 'minimal' }));
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('picks shoes that fit the selected style', () => {
+      const top = item({ category: 'top', selected_color: '#000000' });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const redShoes = item({ category: 'shoes', selected_color: '#d62828' });
+      const greyShoes = item({ category: 'shoes', selected_color: '#808080' });
+      const ids = (style: RecommenderContext['style']) =>
+        suggest([top, bottom, redShoes, greyShoes], ctxAt(20, { style })).flatMap((s) => s.items.map((i) => i.id));
+      expect(ids('minimal')).toContain(greyShoes.id);
+      expect(ids('maximalist')).toContain(redShoes.id);
+    });
+  });
+
   describe('colour-aware piece selection', () => {
     const outfit = () => [
       item({ category: 'top', selected_color: '#000000' }),
