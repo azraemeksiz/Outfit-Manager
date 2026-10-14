@@ -180,7 +180,8 @@
 
     const entry = entries[selectedDate];
     const items: any[] = entry?.outfits?.item_list || [];
-    const today = getTodayStr();
+    // The day the outfit was worn, not today: confirming yesterday's outfit must record yesterday.
+    const wornDate = entry.date ?? selectedDate;
 
     await supabase
       .from('calendar_entries')
@@ -188,9 +189,15 @@
       .eq('id', entry.id);
 
     for (const item of items) {
-      const update: any = { last_worn_date: today };
-      if (dirtyItemIds.has(item.id)) update.status = 'Dirty';
-      await supabase.from('items').update(update).eq('id', item.id);
+      // Never move last_worn_date backwards (confirming an older entry after a newer one).
+      await supabase
+        .from('items')
+        .update({ last_worn_date: wornDate })
+        .eq('id', item.id)
+        .or(`last_worn_date.is.null,last_worn_date.lt.${wornDate}`);
+      if (dirtyItemIds.has(item.id)) {
+        await supabase.from('items').update({ status: 'Dirty' }).eq('id', item.id);
+      }
     }
 
     await fetchEntries();

@@ -169,20 +169,30 @@ export function checkCombinationHistory(
   return foundInSixMonths ? 'co_occurrence' : 'none';
 }
 
+/**
+ * Freshness by days since a piece was last worn: [up to N days, score].
+ * Long-unworn pieces are favoured; a piece worn recently is kept out for a few days
+ * and is back in play after about a week. Values are starting points to be tuned.
+ */
+export const FRESHNESS_STEPS: [number, number][] = [
+  [2, 0.0], // today, yesterday, the day before
+  [6, 0.2],
+  [13, 0.6], // about a week later: a favourite can return
+  [29, 0.85]
+];
+/** Never worn: high but below long-unworn, so new pieces get tried without crowding out forgotten ones. */
+export const FRESHNESS_NEVER_WORN = 0.8;
+
 export function scoreHistoryNorm(item: Item, ctx: RecommenderContext): number {
-  const now = nowOf(ctx);
-  if (item.recent_repeat_date) {
-    const d = (now - new Date(item.recent_repeat_date).getTime()) / DAY_MS;
-    if (d <= 7) return 0.0;
+  if (!item.last_worn_date) return FRESHNESS_NEVER_WORN;
+  // Dates are whole days: compare at local noon so the time of day never shifts the bucket.
+  const worn = new Date(item.last_worn_date + 'T12:00:00').getTime();
+  const days = Math.floor((nowOf(ctx) - worn) / DAY_MS);
+  if (Number.isNaN(days)) return FRESHNESS_NEVER_WORN;
+  for (const [maxDays, score] of FRESHNESS_STEPS) {
+    if (days <= maxDays) return score;
   }
-  if (item.last_worn_date) {
-    const d = (now - new Date(item.last_worn_date).getTime()) / DAY_MS;
-    if (d <= 7) return 0.1;
-    if (d <= 30) return 1.0;
-    if (d <= 60) return 0.7;
-    return 0.4;
-  }
-  return 0.6;
+  return 1.0;
 }
 
 export function computeScore(

@@ -16,7 +16,6 @@ export interface Item {
   is_patterned?: boolean | null;
   photo_url?: string | null;
   last_worn_date?: string | null;
-  recent_repeat_date?: string | null;
 }
 
 /** Item snapshot stored inside outfits.item_list */
