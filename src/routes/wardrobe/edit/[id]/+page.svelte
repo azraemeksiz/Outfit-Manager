@@ -3,12 +3,15 @@
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import ColorPalette from '$lib/components/ColorPalette.svelte';
+  import { paletteForItem, paletteToSave, togglePatterned } from '$lib/palette';
 
   const id = $page.params.id;
 
   let name = '';
   let category = 'top';
-  let color = '#3b82f6';
+  // Colour palette: first colour is the main one. A solid piece keeps one colour, a patterned one up to three.
+  let palette: string[] = ['#3b82f6'];
   let seasons: string[] = [];
   let occasions: string[] = [];
   let is_patterned = false;
@@ -45,15 +48,21 @@
     if (!error && data) {
       name = data.name;
       category = data.category;
-      color = data.selected_color || '#3b82f6';
+      is_patterned = data.is_patterned || false;
+      palette = paletteForItem(data.selected_color, data.colors, is_patterned);
       seasons = data.seasons || [];
       occasions = data.occasions || [];
-      is_patterned = data.is_patterned || false;
       fit = data.fit ?? null;
       initialFit = fit;
     }
     loading = false;
   });
+
+  function togglePattern() {
+    is_patterned = !is_patterned;
+    // No photo here: turning Patterned on lets the user add colours by hand.
+    palette = togglePatterned(palette, is_patterned, []);
+  }
 
   async function handleUpdate() {
     saving = true;
@@ -66,7 +75,7 @@
       .update({
         name,
         category,
-        selected_color: color,
+        ...paletteToSave(palette, is_patterned),
         seasons,
         occasions,
         is_patterned,
@@ -169,7 +178,7 @@
           <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Pattern</label>
           <button
             type="button"
-            on:click={() => is_patterned = !is_patterned}
+            on:click={togglePattern}
             class="w-full bg-gray-50 rounded-2xl p-4 font-bold text-sm transition-all {is_patterned ? 'text-pink-500 ring-2 ring-pink-400' : 'text-gray-400'}"
           >
             {is_patterned ? '✓ Patterned' : 'Solid'}
@@ -178,10 +187,12 @@
 
         <div class="space-y-2">
           <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Color</label>
-          <div class="flex items-center space-x-4 bg-gray-50 rounded-2xl p-4">
-            <input bind:value={color} type="color" class="w-10 h-10 rounded-full cursor-pointer border-none bg-transparent" />
-            <span class="text-sm font-mono font-bold text-gray-400 uppercase">{color}</span>
-          </div>
+          <ColorPalette bind:colors={palette} max={is_patterned ? 3 : 1} />
+          <p class="text-xs text-gray-400 ml-1">
+            {is_patterned
+              ? 'Patterned: up to 3 colors count in the color theory, the first one is the main color.'
+              : 'Solid: only the main color counts. Switch to Patterned above for a multi-color piece.'}
+          </p>
         </div>
 
         {#if message}

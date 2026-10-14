@@ -188,11 +188,16 @@ export interface OutfitColorResult {
 export const MAX_COLORS_PER_ITEM = 3;
 
 /**
- * The colours a piece contributes: its main (user-confirmed) colour first,
- * then the rest of its palette, without duplicates, at most MAX_COLORS_PER_ITEM.
+ * The colours a piece contributes: its main (user-confirmed) colour first, then, for a patterned
+ * piece only, the rest of its palette. Duplicates removed, at most MAX_COLORS_PER_ITEM.
+ * A solid piece counts only its main colour: extra colours detected from its photo are noise
+ * (shadows, lighting), not part of the design.
  */
 export function itemColors(item: Item): string[] {
-  const all = [item.selected_color, ...(item.colors ?? [])].filter((c): c is string => !!c);
+  const palette = item.is_patterned ? (item.colors ?? []) : [];
+  const all = [item.selected_color, ...palette, ...(item.selected_color ? [] : (item.colors ?? []).slice(0, 1))].filter(
+    (c): c is string => !!c
+  );
   const seen = new Set<string>();
   const unique: string[] = [];
   for (const c of all) {

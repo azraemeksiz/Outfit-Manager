@@ -276,7 +276,12 @@ describe('recommender scenarios', () => {
     it('rotation never swaps in a clashing pair when a harmonious one is available', () => {
       const { tops, bottoms } = grid(3);
       const good = [1, 2].map(() => item({ category: 'shoes', selected_color: '#808080' }));
-      const loud = item({ category: 'shoes', selected_color: '#d62828', colors: ['#d62828', '#28d628', '#2828d6'] });
+      const loud = item({
+        category: 'shoes',
+        selected_color: '#d62828',
+        is_patterned: true,
+        colors: ['#d62828', '#28d628', '#2828d6']
+      });
       const result = suggest([...tops, ...bottoms, ...good, loud], ctxAt(20), 6);
       expect(idsOf(result, 'shoes')).not.toContain(loud.id);
     });
@@ -284,7 +289,12 @@ describe('recommender scenarios', () => {
     it('the accessory is left out when it would make the colours worse', () => {
       const top = item({ category: 'top', selected_color: '#101010' });
       const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
-      const loudBag = item({ category: 'accessory', selected_color: '#d62828', colors: ['#d62828', '#28d628'] });
+      const loudBag = item({
+        category: 'accessory',
+        selected_color: '#d62828',
+        is_patterned: true,
+        colors: ['#d62828', '#28d628']
+      });
       const result = suggest([top, bottom, loudBag], ctxAt(20));
       expect(result[0].items.map((i) => i.id)).not.toContain(loudBag.id);
     });
