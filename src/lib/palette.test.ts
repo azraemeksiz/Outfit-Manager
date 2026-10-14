@@ -1,64 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { paletteForItem, paletteToSave, togglePatterned } from './palette';
+import { paletteForItem, paletteToSave } from './palette';
 
 describe('paletteForItem (loading an item into the form)', () => {
-  it('a solid item shows only its main colour', () => {
-    expect(paletteForItem('#d9c3a0', ['#d9c3a0', '#d62828', '#28d628'], false)).toEqual(['#d9c3a0']);
+  it('shows the saved colours, the first one first, without duplicates', () => {
+    expect(paletteForItem('#28d628', ['#d62828', '#28d628', '#ffffff'])).toEqual(['#28d628', '#d62828', '#ffffff']);
   });
 
-  it('a patterned item shows its main colour first, then the rest of its palette, up to three', () => {
-    expect(paletteForItem('#28d628', ['#d62828', '#28d628', '#ffffff', '#101010'], true)).toEqual([
-      '#28d628',
-      '#d62828',
-      '#ffffff'
-    ]);
+  it('shows up to four colours', () => {
+    expect(paletteForItem('#101010', ['#d62828', '#28d628', '#ffffff', '#2828d6', '#f2c12e'])).toHaveLength(4);
+  });
+
+  it('a single-colour item has a single colour', () => {
+    expect(paletteForItem('#d9c3a0', null)).toEqual(['#d9c3a0']);
   });
 
   it('falls back safely when data is missing', () => {
-    expect(paletteForItem(null, null, false)).toEqual(['#3b82f6']);
-    expect(paletteForItem('#d62828', null, true)).toEqual(['#d62828']);
-    expect(paletteForItem(null, ['#d62828', '#28d628'], true)).toEqual(['#d62828', '#28d628']);
-  });
-});
-
-describe('togglePatterned (the Patterned / Solid button)', () => {
-  const detected = ['#d62828', '#28d628', '#2828d6'];
-
-  it('turning Patterned on fills the palette from the photo colours, keeping the chosen main colour first', () => {
-    expect(togglePatterned(['#101010'], true, detected)).toEqual(['#101010', '#d62828', '#28d628']);
-  });
-
-  it('turning Patterned on without photo colours keeps the single colour', () => {
-    expect(togglePatterned(['#101010'], true, [])).toEqual(['#101010']);
-  });
-
-  it('does not overwrite a palette the user already made', () => {
-    expect(togglePatterned(['#101010', '#f2c12e'], true, detected)).toEqual(['#101010', '#f2c12e']);
-  });
-
-  it('turning Patterned off keeps only the main colour', () => {
-    expect(togglePatterned(['#101010', '#f2c12e', '#d62828'], false, detected)).toEqual(['#101010']);
+    expect(paletteForItem(null, null)).toEqual(['#3b82f6']);
+    expect(paletteForItem(null, ['#d62828', '#28d628'])).toEqual(['#d62828', '#28d628']);
+    expect(paletteForItem('nope', ['bad'])).toEqual(['#3b82f6']);
   });
 });
 
 describe('paletteToSave (what goes into the database)', () => {
-  it('a solid item saves its main colour and no palette', () => {
-    expect(paletteToSave(['#101010', '#d62828'], false)).toEqual({ selected_color: '#101010', colors: null });
+  it('one colour: it is the item colour and there is no palette', () => {
+    expect(paletteToSave(['#101010'])).toEqual({ selected_color: '#101010', colors: null });
   });
 
-  it('a patterned item with several colours saves them all, the first one as main', () => {
-    expect(paletteToSave(['#101010', '#d62828', '#28d628'], true)).toEqual({
+  it('several colours: all are saved, the first one is the item colour', () => {
+    expect(paletteToSave(['#101010', '#d62828', '#28d628'])).toEqual({
       selected_color: '#101010',
       colors: ['#101010', '#d62828', '#28d628']
     });
   });
 
-  it('a patterned item with one colour saves no palette', () => {
-    expect(paletteToSave(['#101010'], true)).toEqual({ selected_color: '#101010', colors: null });
+  it('never saves more than four colours, duplicates or invalid values', () => {
+    const saved = paletteToSave(['#101010', 'nope', '#d62828', '#D62828', '#28d628', '#2828d6', '#f2c12e']);
+    expect(saved.colors).toEqual(['#101010', '#d62828', '#28d628', '#2828d6']);
   });
 
-  it('never saves more than three colours or invalid hex values', () => {
-    const saved = paletteToSave(['#101010', 'nope', '#d62828', '#28d628', '#2828d6'], true);
-    expect(saved.colors).toEqual(['#101010', '#d62828', '#28d628']);
+  it('an empty palette falls back to a default colour', () => {
+    expect(paletteToSave([])).toEqual({ selected_color: '#3b82f6', colors: null });
   });
 });

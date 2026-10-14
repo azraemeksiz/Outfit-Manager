@@ -2,14 +2,15 @@
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
   import ColorPalette from '$lib/components/ColorPalette.svelte';
-  import { paletteToSave, togglePatterned } from '$lib/palette';
+  import { extractPalette } from '$lib/colorExtraction';
+  import { paletteToSave } from '$lib/palette';
 
   const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
   let name = '';
   let category = 'top';
-  // Colour palette: first colour is the main one. A solid piece keeps one colour, a patterned one up to three.
+  // The colours found in the photo (1-4). All of them count in the colour theory.
   let palette: string[] = ['#3b82f6'];
   let seasons: string[] = [];
   let occasions: string[] = [];
@@ -51,74 +52,24 @@ async function handleFileSelect(event: Event) {
       const img = new Image();
       img.onload = () => {
         try {
+          // Keep the photo's proportions (the old code squeezed it into a square).
+          const maxSide = 320;
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
           const canvas = document.createElement('canvas');
-          const size = 200;
-          canvas.width = size;
-          canvas.height = size;
+          canvas.width = w;
+          canvas.height = h;
           const ctx = canvas.getContext('2d');
           if (!ctx) return;
-          ctx.drawImage(img, 0, 0, size, size);
+          ctx.drawImage(img, 0, 0, w, h);
 
-          const fullData = ctx.getImageData(0, 0, size, size).data;
-
-          // Detect background color from image corners
-          const cs = 8;
-          let bgR = 0, bgG = 0, bgB = 0, bgN = 0;
-          [[0, 0], [size - cs, 0], [0, size - cs], [size - cs, size - cs]].forEach(([sx, sy]) => {
-            for (let y = sy; y < sy + cs; y++) {
-              for (let x = sx; x < sx + cs; x++) {
-                const i = (y * size + x) * 4;
-                if (fullData[i + 3] < 128) continue;
-                bgR += fullData[i]; bgG += fullData[i + 1]; bgB += fullData[i + 2]; bgN++;
-              }
-            }
-          });
-          if (bgN > 0) { bgR /= bgN; bgG /= bgN; bgB /= bgN; }
-
-          const margin = Math.floor(size * 0.2);
-          const colorMap: Record<string, number> = {};
-
-          for (let y = margin; y < size - margin; y++) {
-            for (let x = margin; x < size - margin; x++) {
-              const i = (y * size + x) * 4;
-              if (fullData[i + 3] < 128) continue;
-
-              const r = fullData[i], g = fullData[i + 1], b = fullData[i + 2];
-
-              // Skip near-white and near-black
-              if (r > 230 && g > 230 && b > 230) continue;
-              if (r < 30 && g < 30 && b < 30) continue;
-
-              // Skip pixels similar to detected background color
-              const dR = r - bgR, dG = g - bgG, dB = b - bgB;
-              if (Math.sqrt(dR * dR + dG * dG + dB * dB) < 35) continue;
-
-              // HSL saturation check — filters grays and near-neutrals
-              const rN = r / 255, gN = g / 255, bN = b / 255;
-              const maxC = Math.max(rN, gN, bN), minC = Math.min(rN, gN, bN);
-              const lightness = (maxC + minC) / 2;
-              const chroma = maxC - minC;
-              const saturation = chroma === 0 ? 0 : chroma / (1 - Math.abs(2 * lightness - 1));
-              if (saturation < 0.2) continue;
-
-              // Use Math.floor to guarantee quantized values stay ≤ 224 (avoids 256 → invalid hex bug)
-              const step = 32;
-              const rQ = Math.floor(r / step) * step;
-              const gQ = Math.floor(g / step) * step;
-              const bQ = Math.floor(b / step) * step;
-
-              const key = `${rQ},${gQ},${bQ}`;
-              colorMap[key] = (colorMap[key] || 0) + 1;
-            }
-          }
-
-          const top3 = Object.entries(colorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
-          detectedColors = top3.map(([key]) => {
-            const [r, g, b] = key.split(',').map(Number);
-            return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-          });
-          if (detectedColors.length > 0) {
-            palette = is_patterned ? togglePatterned([detectedColors[0]], true, detectedColors) : [detectedColors[0]];
+          const result = extractPalette(ctx.getImageData(0, 0, w, h).data, w, h);
+          if (result.palette.length > 0) {
+            palette = result.palette.map((p) => p.hex);
+            detectedColors = palette;
+            // Only ever switches ON: a user who set "Patterned" keeps it.
+            if (result.suggestPatterned) is_patterned = true;
             colorDetected = true;
           }
         } catch (e) {
@@ -127,11 +78,6 @@ async function handleFileSelect(event: Event) {
       };
       img.src = photoPreview;
     }
-  }
-
-  function togglePattern() {
-    is_patterned = !is_patterned;
-    palette = togglePatterned(palette, is_patterned, detectedColors);
   }
 
   async function uploadToCloudinary(file: File): Promise<string> {
@@ -179,7 +125,7 @@ async function handleFileSelect(event: Event) {
     const { error } = await supabase.from('items').insert([{
       name,
       category,
-      ...paletteToSave(palette, is_patterned),
+      ...paletteToSave(palette),
       seasons,
       occasions,
       is_patterned,
@@ -304,11 +250,9 @@ async function handleFileSelect(event: Event) {
             <span class="text-xs font-bold text-green-500">Auto-detected ✓</span>
           {/if}
         </div>
-        <ColorPalette bind:colors={palette} max={is_patterned ? 3 : 1} suggestions={detectedColors} />
+        <ColorPalette bind:colors={palette} />
         <p class="text-xs text-gray-400 ml-1">
-          {is_patterned
-            ? 'Patterned: up to 3 colors count in the color theory, the first one is the main color.'
-            : 'Solid: only the main color counts. Switch to Patterned below for a multi-color piece.'}
+          Tip: photograph the piece laid flat or hanging on a plain background that is not the same color.
         </p>
       </div>
 
@@ -316,7 +260,7 @@ async function handleFileSelect(event: Event) {
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Pattern</label>
         <button
           type="button"
-          on:click={togglePattern}
+          on:click={() => (is_patterned = !is_patterned)}
           class="w-full bg-gray-50 rounded-2xl p-4 font-bold text-sm transition-all {is_patterned ? 'text-pink-500 ring-2 ring-pink-400' : 'text-gray-400'}"
         >
           {is_patterned ? '✓ Patterned' : 'Solid'}

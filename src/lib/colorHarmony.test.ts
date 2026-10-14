@@ -156,25 +156,26 @@ describe('scoreOutfitColor', () => {
     expect(scoreOutfitColor([print, redPants]).score).toBeGreaterThan(scoreOutfitColor([print, orangePants]).score);
   });
 
-  it('counts a patterned item at most three colours and ignores duplicates', () => {
-    const print = item('#d62828', { is_patterned: true, colors: ['#d62828', '#d62828', '#ffffff', '#28d628', '#2828d6'] });
-    const three = item('#d62828', { is_patterned: true, colors: ['#d62828', '#ffffff', '#28d628'] });
-    expect(scoreOutfitColor([print]).harmony).toBe(scoreOutfitColor([three]).harmony);
+  it('counts an item at most four colours and ignores duplicates', () => {
+    const print = item('#d62828', { colors: ['#d62828', '#d62828', '#ffffff', '#28d628', '#2828d6', '#f2c12e'] });
+    expect(itemColors(print)).toEqual(['#d62828', '#ffffff', '#28d628', '#2828d6']);
   });
 
-  it('a solid item only counts its main colour: stray photo colours do not make it multi-colour', () => {
-    const solidWithNoise = item('#d9c3a0', { is_patterned: false, colors: ['#d9c3a0', '#d62828', '#28d628'] });
-    const solid = item('#d9c3a0');
-    expect(itemColors(solidWithNoise)).toEqual(['#d9c3a0']);
-    expect(scoreOutfitColor([solidWithNoise, item('#101010')]).score).toBe(scoreOutfitColor([solid, item('#101010')]).score);
+  it('every saved colour counts, whether or not the piece is flagged as patterned', () => {
+    const colors = ['#d62828', '#28d628', '#ffffff'];
+    const flagged = item('#d62828', { is_patterned: true, colors });
+    const unflagged = item('#d62828', { is_patterned: false, colors });
+    expect(itemColors(unflagged)).toEqual(colors);
+    expect(scoreOutfitColor([unflagged]).harmony).toBe(scoreOutfitColor([flagged]).harmony);
   });
 
-  it('a patterned item without a palette falls back to its main colour', () => {
-    expect(itemColors(item('#d62828', { is_patterned: true, colors: null }))).toEqual(['#d62828']);
+  it('an item without a palette uses its single colour', () => {
+    expect(itemColors(item('#d62828', { colors: null }))).toEqual(['#d62828']);
+    expect(itemColors(item(null, { colors: ['#d62828', '#28d628'] }))).toEqual(['#d62828', '#28d628']);
   });
 
-  it('a patterned item puts its main colour first', () => {
-    const print = item('#28d628', { is_patterned: true, colors: ['#d62828', '#28d628', '#ffffff'] });
+  it('the first saved colour (the biggest in the photo) comes first', () => {
+    const print = item('#28d628', { colors: ['#d62828', '#28d628', '#ffffff'] });
     expect(itemColors(print)).toEqual(['#28d628', '#d62828', '#ffffff']);
   });
 
