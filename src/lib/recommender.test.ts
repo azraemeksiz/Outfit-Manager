@@ -259,6 +259,24 @@ describe('recommender scenarios', () => {
       expect(total(neutralOutfit(), null)).toBeGreaterThanOrEqual(total(loudOutfit(), null));
     });
 
+    it('pattern tolerance follows the style: minimal prefers solids, maximalist prefers a print', () => {
+      const solid = item({ category: 'top', selected_color: '#101010' });
+      const print = item({ category: 'top', selected_color: '#101010', is_patterned: true });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const total = (top: Item, style: RecommenderContext['style']) =>
+        computeScore(ctxAt(20, { style }), top, bottom, null, null).total;
+      expect(total(solid, 'minimal')).toBeGreaterThan(total(print, 'minimal'));
+      expect(total(print, 'maximalist')).toBeGreaterThan(total(solid, 'maximalist'));
+    });
+
+    it('without a style the old pattern rule is unchanged (one print beats two solids)', () => {
+      const solid = item({ category: 'top', selected_color: '#101010' });
+      const print = item({ category: 'top', selected_color: '#101010', is_patterned: true });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const total = (top: Item) => computeScore(ctxAt(20), top, bottom, null, null).total;
+      expect(total(print)).toBeGreaterThanOrEqual(total(solid));
+    });
+
     it('never filters anything out: a loud outfit is still suggested for minimal', () => {
       const result = suggest(loudOutfit(), ctxAt(20, { style: 'minimal' }));
       expect(result.length).toBeGreaterThan(0);

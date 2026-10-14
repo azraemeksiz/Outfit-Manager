@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STYLES, colorScoresForStyle, getStyle } from './styles';
+import { STYLES, colorScoresForStyle, getStyle, patternScoreForStyle } from './styles';
 import { DEFAULT_HARMONY_SCORES, scoreOutfitColor } from './colorHarmony';
 import type { HarmonyType } from './colorHarmony';
 import type { Item } from './types';
@@ -29,6 +29,38 @@ describe('style tables', () => {
 
   it('no style bans anything: every harmony type keeps a score above 0', () => {
     for (const style of STYLES) for (const type of HARMONY_TYPES) expect(style.colorScores[type]).toBeGreaterThan(0);
+  });
+
+  it('gives every style a tone table and a pattern table, all values in 0..1 and above 0', () => {
+    for (const style of STYLES) {
+      for (const v of Object.values(style.toneScores)) {
+        expect(v, style.id).toBeGreaterThan(0);
+        expect(v, style.id).toBeLessThanOrEqual(1);
+      }
+      expect(style.patternScores).toHaveLength(3);
+      for (const v of style.patternScores) {
+        expect(v, style.id).toBeGreaterThan(0);
+        expect(v, style.id).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('pattern tolerance differs: minimal dislikes patterns, maximalist likes them', () => {
+    const minimal = getStyle('minimal')!;
+    const maximalist = getStyle('maximalist')!;
+    expect(patternScoreForStyle('minimal', 0)).toBeGreaterThan(patternScoreForStyle('minimal', 2));
+    expect(patternScoreForStyle('maximalist', 2)).toBeGreaterThan(patternScoreForStyle('maximalist', 0));
+    expect(minimal.patternScores[2]).toBeLessThan(maximalist.patternScores[2]);
+  });
+
+  it('counts of 3 or more patterned pieces use the same score as 2', () => {
+    expect(patternScoreForStyle('sporty', 5)).toBe(patternScoreForStyle('sporty', 2));
+  });
+
+  it('tone preference differs: girl casual likes soft, sporty and streetwear like vivid', () => {
+    expect(getStyle('girl-casual')!.toneScores.soft).toBeGreaterThan(getStyle('girl-casual')!.toneScores.vivid);
+    expect(getStyle('sporty')!.toneScores.vivid).toBeGreaterThan(getStyle('sporty')!.toneScores.soft);
+    expect(getStyle('streetwear')!.toneScores.vivid).toBeGreaterThan(getStyle('streetwear')!.toneScores.soft);
   });
 
   it('returns no table (neutral default) when no style is selected', () => {

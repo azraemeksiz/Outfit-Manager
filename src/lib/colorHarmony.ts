@@ -144,9 +144,32 @@ export function classifyHarmony(hexes: string[]): HarmonyType | null {
   return circDist(a, b) >= COMPLEMENTARY_DEG ? 'complementary' : 'mixed';
 }
 
+/** Character of the chromatic colours: soft (pastel/muted), vivid (saturated mid-tones), a mix, or none (all neutral). */
+export type ToneType = 'none' | 'soft' | 'vivid' | 'mixed';
+
+/** Share of the colour score that comes from the tone table (only when a style provides one). */
+export const TONE_WEIGHT = 0.35;
+
+/** A chromatic colour is soft when it is light (pastel) or low in saturation (muted). */
+function isSoft(c: ParsedColor): boolean {
+  return c.l >= 72 || c.s < 40;
+}
+
+export function classifyTone(hexes: string[]): ToneType {
+  const chromatic = hexes
+    .map(classifyColor)
+    .filter((c): c is ParsedColor => c !== null && c.kind === 'chromatic');
+  if (!chromatic.length) return 'none';
+  const soft = chromatic.filter(isSoft).length;
+  if (soft === chromatic.length) return 'soft';
+  if (soft === 0) return 'vivid';
+  return 'mixed';
+}
+
 export interface OutfitColorResult {
   score: number;
   harmony: HarmonyType | null;
+  tone: ToneType | null;
 }
 
 /** A piece contributes at most this many colours to the outfit. */
@@ -175,10 +198,15 @@ export function itemColors(item: Item): string[] {
  */
 export function scoreOutfitColor(
   items: Item[],
-  scores: Partial<Record<HarmonyType, number>> = {}
+  scores: Partial<Record<HarmonyType, number>> = {},
+  toneScores?: Partial<Record<ToneType, number>>
 ): OutfitColorResult {
   const hexes = items.flatMap(itemColors);
   const harmony = classifyHarmony(hexes);
-  if (!harmony) return { score: 0.5, harmony: null };
-  return { score: scores[harmony] ?? DEFAULT_HARMONY_SCORES[harmony], harmony };
+  if (!harmony) return { score: 0.5, harmony: null, tone: null };
+  const tone = classifyTone(hexes);
+  const harmonyScore = scores[harmony] ?? DEFAULT_HARMONY_SCORES[harmony];
+  const toneScore = toneScores?.[tone];
+  const score = toneScore === undefined ? harmonyScore : harmonyScore * (1 - TONE_WEIGHT) + toneScore * TONE_WEIGHT;
+  return { score, harmony, tone };
 }

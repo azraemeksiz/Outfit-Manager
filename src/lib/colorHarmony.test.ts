@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyColor, classifyHarmony, scoreOutfitColor } from './colorHarmony';
+import { classifyColor, classifyHarmony, classifyTone, scoreOutfitColor } from './colorHarmony';
 import type { Item } from './types';
 
 const item = (selected_color: string | null, over: Partial<Item> = {}): Item => ({
@@ -75,6 +75,46 @@ describe('classifyHarmony', () => {
 
   it('handles hues that wrap around 0/360 as one family', () => {
     expect(classifyHarmony(['#d62828', '#d628a0'])).toBe('analogous');
+  });
+});
+
+describe('classifyTone', () => {
+  it('no chromatic colour -> none', () => {
+    expect(classifyTone(['#000000', '#ffffff', '#4a6fa5'])).toBe('none');
+  });
+
+  it('pastel and muted colours are soft', () => {
+    expect(classifyTone(['#f4a6c0'])).toBe('soft'); // pastel pink
+    expect(classifyTone(['#a8c5b5', '#ffffff'])).toBe('soft'); // pastel mint + white
+    expect(classifyTone(['#9a7b8a'])).toBe('soft'); // muted mauve
+  });
+
+  it('saturated mid-tone colours are vivid', () => {
+    expect(classifyTone(['#d62828'])).toBe('vivid');
+    expect(classifyTone(['#28d6d6', '#f2c12e'])).toBe('vivid');
+  });
+
+  it('a mix of soft and vivid chromatic colours is mixed', () => {
+    expect(classifyTone(['#f4a6c0', '#d62828'])).toBe('mixed');
+  });
+});
+
+describe('scoreOutfitColor with a tone table', () => {
+  const tones = { none: 0.2, soft: 1, vivid: 0.2, mixed: 0.2 };
+
+  it('blends the tone score into the colour score only when a tone table is given', () => {
+    const soft = [item('#f4a6c0'), item('#ffffff')];
+    const withTone = scoreOutfitColor(soft, {}, tones);
+    const without = scoreOutfitColor(soft);
+    expect(withTone.tone).toBe('soft');
+    expect(withTone.score).not.toBe(without.score);
+    expect(without.tone).toBe('soft');
+  });
+
+  it('prefers the tone the table likes', () => {
+    const soft = scoreOutfitColor([item('#f4a6c0'), item('#ffffff')], {}, tones);
+    const vivid = scoreOutfitColor([item('#d62828'), item('#ffffff')], {}, tones);
+    expect(soft.score).toBeGreaterThan(vivid.score);
   });
 });
 

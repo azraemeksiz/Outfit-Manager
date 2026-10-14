@@ -1,5 +1,5 @@
 import { scoreOutfitColor } from './colorHarmony';
-import { colorScoresForStyle } from './styles';
+import { colorScoresForStyle, patternScoreForStyle, toneScoresForStyle } from './styles';
 import type { StyleId } from './styles';
 import type {
   CalendarEntry,
@@ -212,10 +212,15 @@ export function computeScore(
     : 0.5;
 
   const affinityBonus = scoreColorAffinityBonus(allItems, ctx);
-  const colorResult = scoreOutfitColor(allItems, colorScoresForStyle(ctx.style));
+  const colorResult = scoreOutfitColor(allItems, colorScoresForStyle(ctx.style), toneScoresForStyle(ctx.style));
   const c = Math.min(1.0, colorResult.score + affinityBonus);
 
-  const p = isDress ? 0.75 : scorePatternNorm(top, bottom, ctx);
+  // A selected style decides the pattern tolerance; without one the old rule applies.
+  const p = ctx.style
+    ? patternScoreForStyle(ctx.style, allItems.filter((i) => i.is_patterned).length)
+    : isDress
+      ? 0.75
+      : scorePatternNorm(top, bottom, ctx);
 
   let h = coreItems.length
     ? coreItems.reduce((s, item) => s + scoreHistoryNorm(item, ctx), 0) / coreItems.length
@@ -265,7 +270,9 @@ function pickBest(list: Item[], score: (item: Item) => number): Item | null {
 function pickComplement(candidates: Item[], base: Item[], ctx: RecommenderContext, weatherWeight: number): Item | null {
   return pickBest(
     candidates,
-    (c) => scoreOutfitColor([...base, c], colorScoresForStyle(ctx.style)).score + weatherWeight * scoreWeatherNorm(c, ctx)
+    (c) =>
+      scoreOutfitColor([...base, c], colorScoresForStyle(ctx.style), toneScoresForStyle(ctx.style)).score +
+      weatherWeight * scoreWeatherNorm(c, ctx)
   );
 }
 
@@ -346,7 +353,13 @@ const CORE_CATEGORIES = new Set(['top', 'bottom', 'dress']);
  * Returned suggestions keep their real score.
  */
 function selectDiverse(combinations: Suggestion[], limit: number): Suggestion[] {
-  const remaining = [...combinations].sort((a, b) => b.score - a.score);
+  // Equal total scores are common (scores are whole numbers): break ties by freshness, then colour.
+  const remaining = [...combinations].sort(
+    (a, b) =>
+      b.score - a.score ||
+      b.scoreBreakdown.history - a.scoreBreakdown.history ||
+      b.scoreBreakdown.color - a.scoreBreakdown.color
+  );
   const uses = new Map<number, number>();
   const picked: Suggestion[] = [];
 
