@@ -102,6 +102,25 @@ describe('style tables', () => {
     expect(s.relaxed).toBeGreaterThan(s.regular);
   });
 
+  it('sporty gives neutrals a real place: close to its best colour types', () => {
+    const s = getStyle('sporty')!;
+    expect(s.colorScores.neutral).toBeGreaterThanOrEqual(0.8);
+    expect(s.toneScores.none).toBeGreaterThanOrEqual(0.8);
+    expect(s.toneScores.vivid).toBeGreaterThan(s.toneScores.none);
+  });
+
+  it('no style scores any silhouette, tone or pattern value below 0.1 or any colour type below 0.1', () => {
+    for (const style of STYLES) {
+      const all = [
+        ...Object.values(style.colorScores),
+        ...Object.values(style.toneScores),
+        ...style.patternScores,
+        ...Object.values(style.silhouetteScores)
+      ];
+      expect(Math.min(...all), style.id).toBeGreaterThanOrEqual(0.1);
+    }
+  });
+
   it('returns no table (neutral default) when no style is selected', () => {
     expect(colorScoresForStyle(null)).toEqual({});
     expect(colorScoresForStyle(undefined)).toEqual({});

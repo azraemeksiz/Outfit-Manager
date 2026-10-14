@@ -34,10 +34,10 @@ export const STYLES: StyleProfile[] = [
     id: 'minimal',
     label: 'Minimal',
     emoji: '🤍',
-    colorScores: { neutral: 1.0, accent: 0.9, monochrome: 0.95, analogous: 0.6, complementary: 0.4, mixed: 0.25, clash: 0.1 },
-    toneScores: { none: 1.0, soft: 0.8, vivid: 0.35, mixed: 0.25 },
-    patternScores: [1.0, 0.5, 0.1],
-    silhouetteScores: { regular: 1.0, fitted: 0.85, relaxed: 0.7, contrast: 0.6, oversized: 0.45 }
+    colorScores: { neutral: 1.0, accent: 0.9, monochrome: 0.95, analogous: 0.65, complementary: 0.5, mixed: 0.35, clash: 0.2 },
+    toneScores: { none: 1.0, soft: 0.8, vivid: 0.45, mixed: 0.35 },
+    patternScores: [1.0, 0.6, 0.25],
+    silhouetteScores: { regular: 1.0, fitted: 0.85, relaxed: 0.8, contrast: 0.65, oversized: 0.6 }
   },
   {
     id: 'streetwear',
@@ -52,19 +52,20 @@ export const STYLES: StyleProfile[] = [
     id: 'girl-casual',
     label: 'Girl casual',
     emoji: '🎀',
-    colorScores: { neutral: 0.75, accent: 0.9, monochrome: 0.9, analogous: 0.9, complementary: 0.65, mixed: 0.55, clash: 0.25 },
-    toneScores: { none: 0.6, soft: 1.0, vivid: 0.4, mixed: 0.55 },
-    patternScores: [0.7, 1.0, 0.45],
-    silhouetteScores: { fitted: 0.9, regular: 0.85, contrast: 0.8, relaxed: 0.6, oversized: 0.45 }
+    colorScores: { neutral: 0.75, accent: 0.9, monochrome: 0.9, analogous: 0.9, complementary: 0.7, mixed: 0.6, clash: 0.35 },
+    toneScores: { none: 0.6, soft: 1.0, vivid: 0.5, mixed: 0.55 },
+    patternScores: [0.7, 1.0, 0.5],
+    silhouetteScores: { fitted: 0.9, regular: 0.85, contrast: 0.85, relaxed: 0.65, oversized: 0.55 }
   },
   {
     id: 'sporty',
     label: 'Sporty',
     emoji: '👟',
-    colorScores: { neutral: 0.7, accent: 0.9, monochrome: 0.8, analogous: 0.75, complementary: 0.95, mixed: 0.7, clash: 0.4 },
-    toneScores: { none: 0.6, soft: 0.4, vivid: 1.0, mixed: 0.7 },
-    patternScores: [0.9, 0.7, 0.3],
-    silhouetteScores: { regular: 0.9, fitted: 0.8, relaxed: 0.8, oversized: 0.5, contrast: 0.5 }
+    // Neutrals (black/white/grey) are a core part of sportswear, so they score well too.
+    colorScores: { neutral: 0.85, accent: 0.9, monochrome: 0.8, analogous: 0.75, complementary: 0.95, mixed: 0.7, clash: 0.45 },
+    toneScores: { none: 0.8, soft: 0.45, vivid: 1.0, mixed: 0.7 },
+    patternScores: [0.9, 0.75, 0.4],
+    silhouetteScores: { regular: 0.9, fitted: 0.85, relaxed: 0.85, oversized: 0.6, contrast: 0.6 }
   },
   {
     id: 'maximalist',
