@@ -94,6 +94,33 @@ export function toneScoresForStyle(id: StyleId | null | undefined): Record<ToneT
   return getStyle(id)?.toneScores;
 }
 
+export type OccasionFit = 'good' | 'ok' | 'poor';
+
+/**
+ * How well a style usually suits an occasion. Only a hint for the UI: it never changes the score
+ * and never hides an outfit (a style never bans anything). Missing entries mean 'ok'.
+ */
+const STYLE_OCCASION_FIT: Record<StyleId, Partial<Record<string, OccasionFit>>> = {
+  minimal: { Casual: 'good', Sport: 'poor', Indoor: 'good', Party: 'ok', Formal: 'good' },
+  streetwear: { Casual: 'good', Sport: 'good', Indoor: 'good', Party: 'ok', Formal: 'poor' },
+  'girl-casual': { Casual: 'good', Sport: 'ok', Indoor: 'good', Party: 'good', Formal: 'ok' },
+  sporty: { Casual: 'good', Sport: 'good', Indoor: 'good', Party: 'poor', Formal: 'poor' },
+  maximalist: { Casual: 'ok', Sport: 'poor', Indoor: 'good', Party: 'good', Formal: 'poor' }
+};
+
+export function styleOccasionHint(
+  id: StyleId | null | undefined,
+  occasion: string
+): { fit: OccasionFit; message: string } {
+  const style = getStyle(id);
+  const fit = (style && STYLE_OCCASION_FIT[style.id][occasion]) || 'ok';
+  const message =
+    style && fit === 'poor'
+      ? `${style.label} does not usually suit ${occasion}. You still get the best matches, it only changes the order.`
+      : '';
+  return { fit, message };
+}
+
 /** Silhouette score under a style; neutral when the silhouette is unknown (a fit tag is missing). */
 export function silhouetteScoreForStyle(id: StyleId, type: SilhouetteType | null): number {
   if (!type) return SILHOUETTE_UNKNOWN_SCORE;

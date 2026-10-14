@@ -3,7 +3,7 @@
   import { supabase } from '$lib/supabase';
   import { buildUserStyleProfile, diagnoseEmpty, filterItems, generateOutfitCombinations } from '$lib/recommender';
   import type { RecommenderContext } from '$lib/recommender';
-  import { STYLES } from '$lib/styles';
+  import { STYLES, styleOccasionHint } from '$lib/styles';
   import type { StyleId } from '$lib/styles';
   import type { CalendarEntry, Item, Suggestion, UserStyleProfile } from '$lib/types';
 
@@ -346,6 +346,12 @@
         {/each}
       </div>
     </div>
+
+    {#if styleOccasionHint(style, occasion).message}
+      <p class="text-xs font-bold text-amber-600 bg-amber-50 rounded-2xl px-4 py-3 mb-4">
+        💡 {styleOccasionHint(style, occasion).message}
+      </p>
+    {/if}
 
     <button on:click={generate} disabled={loading}
       class="w-full bg-pink-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-pink-100 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 mb-8">
