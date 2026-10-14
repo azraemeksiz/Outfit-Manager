@@ -168,6 +168,64 @@ describe('extractPalette: multi-colour garments', () => {
   });
 });
 
+describe('extractPalette: a single-colour garment gets exactly one colour', () => {
+  const redWith = (blueShare: number) =>
+    image(W, H, (x, y) => {
+      if (!inGarment(x, y)) return [255, 255, 255, 255];
+      // a vertical band of blue covering about `blueShare` of the garment width
+      const gw = W - 40;
+      const inBlue = x - 20 < gw * blueShare;
+      return inBlue ? [...BLUE, 255] : [...RED, 255];
+    });
+
+  it('heavy texture and noise on a plain piece still gives one colour', () => {
+    const data = image(W, H, (x, y) =>
+      inGarment(x, y)
+        ? [BEIGE[0] + noise(x, y, 28), BEIGE[1] + noise(y, x, 28), BEIGE[2] + noise(x * 3, y * 7, 28), 255]
+        : [30, 90, 40, 255]
+    );
+    const r = extractPalette(data, W, H);
+    expect(r.palette).toHaveLength(1);
+    expect(r.suggestPatterned).toBe(false);
+  });
+
+  it('a small graphic (12%) on a plain piece does not make it multi-colour', () => {
+    const r = extractPalette(redWith(0.12), W, H);
+    expect(r.palette).toHaveLength(1);
+    expect(near(r.palette[0].hex, RED)).toBe(true);
+    expect(r.palette[0].share).toBe(1);
+    expect(r.suggestPatterned).toBe(false);
+  });
+
+  it('a big second colour (30%) makes it a two-colour piece', () => {
+    const r = extractPalette(redWith(0.3), W, H);
+    expect(r.palette).toHaveLength(2);
+    expect(r.suggestPatterned).toBe(true);
+  });
+
+  it('a minor colour in a multi-colour piece (under 8%) is dropped', () => {
+    const data = image(W, H, (x, y) => {
+      if (!inGarment(x, y)) return [255, 255, 255, 255];
+      const t = (x - 20) / (W - 40);
+      if (t < 0.48) return [...RED, 255];
+      if (t < 0.96) return [...BLUE, 255];
+      return [20, 200, 20, 255];
+    });
+    const r = extractPalette(data, W, H);
+    expect(r.palette).toHaveLength(2);
+  });
+
+  it('four equal colours give four colours', () => {
+    const data = image(W, H, (x, y) => {
+      if (!inGarment(x, y)) return [255, 255, 255, 255];
+      const t = Math.floor(((x - 20) / (W - 40)) * 4);
+      const colors: Px[] = [[...RED, 255], [...BLUE, 255], [20, 200, 20, 255], [240, 200, 20, 255]];
+      return colors[Math.min(t, 3)];
+    });
+    expect(extractPalette(data, W, H).palette).toHaveLength(4);
+  });
+});
+
 describe('extractPalette: robustness', () => {
   it('is deterministic', () => {
     const data = image(W, H, (x, y) => (inGarment(x, y) ? [RED[0] + noise(x, y, 20), RED[1], RED[2], 255] : [255, 255, 255, 255]));

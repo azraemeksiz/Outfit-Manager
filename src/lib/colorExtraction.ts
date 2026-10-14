@@ -41,7 +41,8 @@ const INIT_SEPARATION = 25; // ΔE between initial centroids
 const MERGE_DISTANCE = 16; // ΔE under which two clusters are one colour
 const SHADE_AB = 12; // same hue ...
 const SHADE_L = 30; // ... and only lighter/darker: a shade of the same colour
-const MIN_SHARE = 0.04; // smaller clusters are logos/noise
+const SOLID_SHARE = 0.8; // one colour covering this much of the garment = a single-colour piece
+const MIN_SHARE = 0.08; // in a multi-colour piece, smaller colours are logos/noise
 const PATTERNED_SECOND_SHARE = 0.2;
 
 // ---------- colour maths ----------
@@ -231,15 +232,35 @@ export function extractPalette(
   const opaque: Sample[] = [];
   let sampled = 0;
   let transparent = 0;
+  // Every sample is the average of a small block (not a single pixel): noise, texture and JPEG
+  // artefacts cancel out, so a plain piece does not split into several colours.
+  const block = Math.max(3, Math.min(step, 6));
   for (let y = 0; y < height; y += step) {
     for (let x = 0; x < width; x += step) {
       sampled++;
-      const i = (y * width + x) * 4;
-      if (data[i + 3] < 128) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let n = 0;
+      let total = 0;
+      const y1 = Math.min(height, y + block);
+      const x1 = Math.min(width, x + block);
+      for (let yy = y; yy < y1; yy++) {
+        for (let xx = x; xx < x1; xx++) {
+          total++;
+          const i = (yy * width + xx) * 4;
+          if (data[i + 3] < 128) continue;
+          r += data[i];
+          g += data[i + 1];
+          b += data[i + 2];
+          n++;
+        }
+      }
+      if (n === 0 || n < total / 2) {
         transparent++;
         continue;
       }
-      opaque.push({ lab: rgbToLab(data[i], data[i + 1], data[i + 2]), fx: x / width, fy: y / height });
+      opaque.push({ lab: rgbToLab(r / n, g / n, b / n), fx: x / width, fy: y / height });
     }
   }
   if (!opaque.length) return empty;
@@ -273,10 +294,12 @@ export function extractPalette(
   const pixels = garment.map((s) => s.lab);
   const merged = mergeClusters(kMeans(pixels, Math.min(k, pixels.length)));
   const total = merged.reduce((s, c) => s + c.count, 0);
-  const kept = merged
-    .filter((c) => c.count / total >= MIN_SHARE)
-    .sort((a, b) => b.count - a.count || (labToHex(a.lab) < labToHex(b.lab) ? -1 : 1))
-    .slice(0, maxColors);
+  const ranked = [...merged].sort((a, b) => b.count - a.count || (labToHex(a.lab) < labToHex(b.lab) ? -1 : 1));
+
+  // A piece is single-colour when one colour covers most of it: shadows, texture, a small logo
+  // or a hanger must not turn it into a multi-colour piece. Only then do the other colours count.
+  const isSolid = ranked[0].count / total >= SOLID_SHARE;
+  const kept = isSolid ? [ranked[0]] : ranked.filter((c) => c.count / total >= MIN_SHARE).slice(0, maxColors);
   const keptTotal = kept.reduce((s, c) => s + c.count, 0);
   const palette = kept.map((c) => ({ hex: labToHex(c.lab), share: c.count / keptTotal }));
 
