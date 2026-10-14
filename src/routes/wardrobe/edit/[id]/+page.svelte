@@ -122,7 +122,10 @@
             <option value="dress">Dress</option>
             <option value="outerwear">Outerwear</option>
             <option value="shoes">Shoes</option>
-            <option value="accessory">Accessory</option>
+            {#if category === 'accessory'}
+              <!-- Old items only: accessories are no longer added or used in suggestions. -->
+              <option value="accessory">Accessory (not used in suggestions)</option>
+            {/if}
           </select>
         </div>
 

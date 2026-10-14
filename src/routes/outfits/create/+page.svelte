@@ -40,7 +40,8 @@
   let dragItem: any = null;
   let dragOverSlot: string | null = null;
 
-  const filters = ['all', 'top', 'bottom', 'dress', 'outerwear', 'shoes', 'accessory'];
+  // Accessories are no longer added or suggested; old ones stay visible under "all".
+  const filters = ['all', 'top', 'bottom', 'dress', 'outerwear', 'shoes'];
 
   $: filteredItems = activeFilter === 'all'
     ? items

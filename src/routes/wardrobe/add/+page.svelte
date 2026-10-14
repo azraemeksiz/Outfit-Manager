@@ -246,7 +246,6 @@ async function handleFileSelect(event: Event) {
           <option value="dress">Dress</option>
           <option value="outerwear">Outerwear</option>
           <option value="shoes">Shoes</option>
-          <option value="accessory">Accessory</option>
         </select>
       </div>
 
