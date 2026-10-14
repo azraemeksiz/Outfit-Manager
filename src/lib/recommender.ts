@@ -1,5 +1,6 @@
 import { scoreOutfitColor } from './colorHarmony';
-import { colorScoresForStyle, patternScoreForStyle, toneScoresForStyle } from './styles';
+import { classifySilhouette } from './silhouette';
+import { colorScoresForStyle, patternScoreForStyle, silhouetteScoreForStyle, toneScoresForStyle } from './styles';
 import type { StyleId } from './styles';
 import type {
   CalendarEntry,
@@ -236,20 +237,33 @@ export function computeScore(
     }
   }
 
-  const weather = Math.round(w * 40);
-  const color = Math.round(c * 30);
-  const pattern = Math.round(p * 15);
-  const history = Math.round(h * 15);
+  // Silhouette only counts when a style is selected; then it takes points from colour, pattern and freshness.
+  const silhouetteType = classifySilhouette(isDress ? null : top, bottom);
+  const s = ctx.style ? silhouetteScoreForStyle(ctx.style, silhouetteType) : 0;
+  const max = ctx.style ? MAX_POINTS_WITH_STYLE : MAX_POINTS_NO_STYLE;
+
+  const weather = Math.round(w * max.weather);
+  const color = Math.round(c * max.color);
+  const pattern = Math.round(p * max.pattern);
+  const silhouette = Math.round(s * max.silhouette);
+  const history = Math.round(h * max.history);
   return {
-    total: weather + color + pattern + history,
+    total: weather + color + pattern + silhouette + history,
     weather,
     color,
     pattern,
+    silhouette,
     history,
     combinationStatus,
-    colorHarmony: colorResult.harmony
+    colorHarmony: colorResult.harmony,
+    silhouetteType,
+    max
   };
 }
+
+/** Points per criterion (sum 100). Without a style there is no silhouette criterion. */
+export const MAX_POINTS_NO_STYLE = { weather: 40, color: 30, pattern: 15, silhouette: 0, history: 15 };
+export const MAX_POINTS_WITH_STYLE = { weather: 40, color: 25, pattern: 10, silhouette: 15, history: 10 };
 
 /** Highest score wins; on a tie the first item in the list stays (deterministic). */
 function pickBest(list: Item[], score: (item: Item) => number): Item | null {

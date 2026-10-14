@@ -28,6 +28,14 @@
   let heatThreshold = 25;
   let lightOuterwearMax: number | null = null;
 
+  const silhouetteLabels: Record<string, string> = {
+    fitted: 'Fitted',
+    regular: 'Regular',
+    relaxed: 'Relaxed',
+    oversized: 'Oversized',
+    contrast: 'Volume contrast'
+  };
+
   const harmonyLabels: Record<string, string> = {
     neutral: 'All neutrals',
     accent: 'Neutrals + one accent',
@@ -367,13 +375,18 @@
                   🌤 Weather {suggestion.scoreBreakdown.weather}/40
                 </span>
                 <span class="text-[11px] font-bold bg-purple-50 text-purple-600 px-2.5 py-1 rounded-full">
-                  🎨 Color {suggestion.scoreBreakdown.color}/30
+                  🎨 Color {suggestion.scoreBreakdown.color}/{suggestion.scoreBreakdown.max.color}
                 </span>
                 <span class="text-[11px] font-bold bg-pink-50 text-pink-600 px-2.5 py-1 rounded-full">
-                  🌀 Pattern {suggestion.scoreBreakdown.pattern}/15
+                  🌀 Pattern {suggestion.scoreBreakdown.pattern}/{suggestion.scoreBreakdown.max.pattern}
                 </span>
+                {#if suggestion.scoreBreakdown.max.silhouette > 0}
+                  <span class="text-[11px] font-bold bg-teal-50 text-teal-600 px-2.5 py-1 rounded-full">
+                    👖 Fit {suggestion.scoreBreakdown.silhouette}/{suggestion.scoreBreakdown.max.silhouette}{suggestion.scoreBreakdown.silhouetteType ? ` · ${silhouetteLabels[suggestion.scoreBreakdown.silhouetteType]}` : ' · not tagged'}
+                  </span>
+                {/if}
                 <span class="text-[11px] font-bold bg-green-50 text-green-600 px-2.5 py-1 rounded-full">
-                  ⏱ Freshness {suggestion.scoreBreakdown.history}/15
+                  ⏱ Freshness {suggestion.scoreBreakdown.history}/{suggestion.scoreBreakdown.max.history}
                 </span>
                 {#if suggestion.scoreBreakdown.combinationStatus === 'co_occurrence'}
                   <span class="text-[11px] font-bold bg-amber-50 text-amber-600 px-2.5 py-1 rounded-full">

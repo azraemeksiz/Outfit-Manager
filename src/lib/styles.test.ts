@@ -63,6 +63,23 @@ describe('style tables', () => {
     expect(getStyle('streetwear')!.toneScores.vivid).toBeGreaterThan(getStyle('streetwear')!.toneScores.soft);
   });
 
+  it('gives every style a silhouette table, all five types, values in (0, 1]', () => {
+    for (const style of STYLES) {
+      expect(Object.keys(style.silhouetteScores).sort()).toEqual(['contrast', 'fitted', 'oversized', 'regular', 'relaxed']);
+      for (const v of Object.values(style.silhouetteScores)) {
+        expect(v, style.id).toBeGreaterThan(0);
+        expect(v, style.id).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it('silhouette preference differs: streetwear likes oversized, girl casual likes fitted, minimal likes regular', () => {
+    expect(getStyle('streetwear')!.silhouetteScores.oversized).toBeGreaterThan(getStyle('streetwear')!.silhouetteScores.fitted);
+    expect(getStyle('girl-casual')!.silhouetteScores.fitted).toBeGreaterThan(getStyle('girl-casual')!.silhouetteScores.oversized);
+    const m = getStyle('minimal')!.silhouetteScores;
+    expect(m.regular).toBeGreaterThanOrEqual(Math.max(...Object.values(m)));
+  });
+
   it('returns no table (neutral default) when no style is selected', () => {
     expect(colorScoresForStyle(null)).toEqual({});
     expect(colorScoresForStyle(undefined)).toEqual({});

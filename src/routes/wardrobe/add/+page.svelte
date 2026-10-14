@@ -11,6 +11,9 @@
   let seasons: string[] = [];
   let occasions: string[] = [];
   let is_patterned = false;
+  let fit: string | null = null;
+  // Fit only makes sense for pieces that make up the silhouette.
+  $: showFit = ['top', 'bottom', 'dress', 'outerwear'].includes(category);
   let photoFile: File | null = null;
   let photoPreview: string | null = null;
   let uploading = false;
@@ -173,6 +176,8 @@ async function handleFileSelect(event: Event) {
       seasons,
       occasions,
       is_patterned,
+      // Only sent when chosen, so adding items keeps working before the DB column exists.
+      ...(showFit && fit ? { fit } : {}),
       photo_url,
       user_id: user.id
     }]);
@@ -237,6 +242,24 @@ async function handleFileSelect(event: Event) {
           <option value="accessory">Accessory</option>
         </select>
       </div>
+
+      {#if showFit}
+        <div class="space-y-2">
+          <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Fit (Optional)</label>
+          <div class="grid grid-cols-3 gap-2">
+            {#each [['slim', 'Slim'], ['regular', 'Regular'], ['loose', 'Loose']] as [value, label]}
+              <button
+                type="button"
+                on:click={() => (fit = fit === value ? null : value)}
+                class="py-3 rounded-2xl font-bold text-sm transition-all {fit === value ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+              >
+                {label}
+              </button>
+            {/each}
+          </div>
+          <p class="text-xs text-gray-400 ml-1">How it sits on the body: slim = close-fitting, loose = baggy or oversized.</p>
+        </div>
+      {/if}
 
       <div class="space-y-2">
         <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>

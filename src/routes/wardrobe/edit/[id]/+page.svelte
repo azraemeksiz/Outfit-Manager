@@ -12,6 +12,9 @@
   let seasons: string[] = [];
   let occasions: string[] = [];
   let is_patterned = false;
+  let fit: string | null = null;
+  let initialFit: string | null = null;
+  $: showFit = ['top', 'bottom', 'dress', 'outerwear'].includes(category);
   let loading = true;
   let saving = false;
   let message = '';
@@ -46,6 +49,8 @@
       seasons = data.seasons || [];
       occasions = data.occasions || [];
       is_patterned = data.is_patterned || false;
+      fit = data.fit ?? null;
+      initialFit = fit;
     }
     loading = false;
   });
@@ -54,6 +59,8 @@
     saving = true;
     message = '';
 
+    // Fit is only sent when it changed, so saving keeps working before the DB column exists.
+    const nextFit = showFit ? fit : null;
     const { error } = await supabase
       .from('items')
       .update({
@@ -62,7 +69,8 @@
         selected_color: color,
         seasons,
         occasions,
-        is_patterned
+        is_patterned,
+        ...(nextFit !== initialFit ? { fit: nextFit } : {})
       })
       .eq('id', id);
 
@@ -108,6 +116,24 @@
             <option value="accessory">Accessory</option>
           </select>
         </div>
+
+        {#if showFit}
+          <div class="space-y-2">
+            <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Fit (Optional)</label>
+            <div class="grid grid-cols-3 gap-2">
+              {#each [['slim', 'Slim'], ['regular', 'Regular'], ['loose', 'Loose']] as [value, label]}
+                <button
+                  type="button"
+                  on:click={() => (fit = fit === value ? null : value)}
+                  class="py-3 rounded-2xl font-bold text-sm transition-all {fit === value ? 'bg-pink-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}"
+                >
+                  {label}
+                </button>
+              {/each}
+            </div>
+            <p class="text-xs text-gray-400 ml-1">How it sits on the body: slim = close-fitting, loose = baggy or oversized.</p>
+          </div>
+        {/if}
 
         <div class="space-y-2">
           <label class="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Season</label>

@@ -277,6 +277,45 @@ describe('recommender scenarios', () => {
       expect(total(print)).toBeGreaterThanOrEqual(total(solid));
     });
 
+    describe('silhouette (fit)', () => {
+      const fitted = (topFit: string | null, bottomFit: string | null) => ({
+        top: item({ category: 'top', selected_color: '#101010', fit: topFit }),
+        bottom: item({ category: 'bottom', selected_color: '#ffffff', fit: bottomFit })
+      });
+      const total = (p: { top: Item; bottom: Item }, style: RecommenderContext['style']) =>
+        computeScore(ctxAt(20, { style }), p.top, p.bottom, null, null).total;
+
+      it('streetwear prefers loose over slim; girl casual prefers fitted over oversized', () => {
+        expect(total(fitted('loose', 'loose'), 'streetwear')).toBeGreaterThan(total(fitted('slim', 'slim'), 'streetwear'));
+        expect(total(fitted('slim', 'slim'), 'girl-casual')).toBeGreaterThan(total(fitted('loose', 'loose'), 'girl-casual'));
+      });
+
+      it('fit is ignored when no style is selected', () => {
+        expect(total(fitted('loose', 'loose'), null)).toBe(total(fitted('slim', 'slim'), null));
+      });
+
+      it('missing fits are neutral: they are never the best or the worst for a style', () => {
+        const unknown = total(fitted(null, null), 'streetwear');
+        expect(unknown).toBeLessThan(total(fitted('loose', 'loose'), 'streetwear'));
+        expect(unknown).toBeGreaterThan(total(fitted('slim', 'slim'), 'streetwear'));
+      });
+
+      it('reports the silhouette type and the maxima of the criteria in the breakdown', () => {
+        const p = fitted('loose', 'slim');
+        const b = computeScore(ctxAt(20, { style: 'streetwear' }), p.top, p.bottom, null, null);
+        expect(b.silhouetteType).toBe('contrast');
+        expect(b.max.weather + b.max.color + b.max.pattern + b.max.silhouette + b.max.history).toBe(100);
+        const none = computeScore(ctxAt(20), p.top, p.bottom, null, null);
+        expect(none.max.silhouette).toBe(0);
+        expect(none.max.weather + none.max.color + none.max.pattern + none.max.history).toBe(100);
+      });
+
+      it('a style never removes an outfit because of its fit', () => {
+        const items = [fitted('loose', 'loose').top, fitted('loose', 'loose').bottom];
+        expect(suggest(items, ctxAt(20, { style: 'minimal' })).length).toBe(1);
+      });
+    });
+
     it('never filters anything out: a loud outfit is still suggested for minimal', () => {
       const result = suggest(loudOutfit(), ctxAt(20, { style: 'minimal' }));
       expect(result.length).toBeGreaterThan(0);
