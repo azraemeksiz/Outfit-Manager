@@ -26,8 +26,8 @@ const ctxAt = (temperature: number | null, over: Partial<RecommenderContext> = {
   ...over
 });
 
-const suggest = (items: Item[], ctx: RecommenderContext) =>
-  generateOutfitCombinations(filterItems(items, ctx), ctx);
+const suggest = (items: Item[], ctx: RecommenderContext, limit?: number) =>
+  generateOutfitCombinations(filterItems(items, ctx), ctx, limit);
 
 describe('recommender scenarios', () => {
   it('does not suggest winter pieces at 30°C', () => {
@@ -188,6 +188,48 @@ describe('recommender scenarios', () => {
       const winterTop = item({ category: 'top', seasons: ['winter'] });
       const ids = usedIds([winterTop, item({ category: 'bottom' })], ctxAt(30, { occasion: 'Indoor' }));
       expect(ids).toContain(winterTop.id);
+    });
+  });
+
+  describe('diverse selection (no repeated piece unless needed)', () => {
+    const coreIds = (s: { items: Item[] }) =>
+      s.items.filter((i) => ['top', 'bottom', 'dress'].includes(i.category)).map((i) => i.id);
+
+    it('does not repeat the same bottom in the first suggestions when alternatives exist', () => {
+      const tops = [1, 2, 3, 4].map(() => item({ category: 'top' }));
+      const bottoms = [1, 2, 3].map(() => item({ category: 'bottom' }));
+      const result = suggest([...tops, ...bottoms], ctxAt(20), 3);
+      expect(result).toHaveLength(3);
+      const usedBottoms = result.map((s) => s.items.find((i) => i.category === 'bottom')!.id);
+      expect(new Set(usedBottoms).size).toBe(3);
+    });
+
+    it('still gives several suggestions with only one bottom', () => {
+      const tops = [1, 2, 3, 4].map(() => item({ category: 'top' }));
+      const result = suggest([...tops, item({ category: 'bottom' })], ctxAt(20), 4);
+      expect(result).toHaveLength(4);
+      expect(new Set(result.map((s) => s.items.find((i) => i.category === 'top')!.id)).size).toBe(4);
+    });
+
+    it('returns up to 10 suggestions by default', () => {
+      const tops = Array.from({ length: 5 }, () => item({ category: 'top' }));
+      const bottoms = Array.from({ length: 5 }, () => item({ category: 'bottom' }));
+      expect(suggest([...tops, ...bottoms], ctxAt(20)).length).toBe(10);
+    });
+
+    it('never returns the same top+bottom pair twice', () => {
+      const result = suggest([item({ category: 'top' }), item({ category: 'top' }), item({ category: 'bottom' })], ctxAt(20), 10);
+      const keys = result.map((s) => coreIds(s).join('-'));
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it('prefers the better outfit when penalties are equal', () => {
+      const good = item({ category: 'top', selected_color: '#000000' });
+      const loud = item({ category: 'top', selected_color: '#d62828' });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff' });
+      const result = suggest([good, loud, bottom], ctxAt(20), 2);
+      expect(result).toHaveLength(2);
+      expect(result[0].scoreBreakdown.total).toBeGreaterThanOrEqual(result[1].scoreBreakdown.total);
     });
   });
 

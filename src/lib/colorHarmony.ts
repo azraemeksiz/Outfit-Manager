@@ -2,7 +2,7 @@ import type { Item } from './types';
 
 /**
  * Outfit-level colour scoring. One model for every piece of the outfit:
- * 1. each piece contributes its main colour,
+ * 1. each piece contributes its colours (main colour + the rest of its palette, up to 3),
  * 2. colours are split into neutrals (incl. near-neutrals: navy, beige, brown, denim) and chromatic ones,
  * 3. the chromatic hues decide the outfit's harmony type,
  * 4. a score table maps the type to a 0..1 score.
@@ -149,9 +149,24 @@ export interface OutfitColorResult {
   harmony: HarmonyType | null;
 }
 
-/** The colour a piece contributes: its main (user-confirmed) colour. */
-export function primaryColor(item: Item): string | null {
-  return item.selected_color || item.colors?.[0] || null;
+/** A piece contributes at most this many colours to the outfit. */
+export const MAX_COLORS_PER_ITEM = 3;
+
+/**
+ * The colours a piece contributes: its main (user-confirmed) colour first,
+ * then the rest of its palette, without duplicates, at most MAX_COLORS_PER_ITEM.
+ */
+export function itemColors(item: Item): string[] {
+  const all = [item.selected_color, ...(item.colors ?? [])].filter((c): c is string => !!c);
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const c of all) {
+    const key = c.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(c);
+  }
+  return unique.slice(0, MAX_COLORS_PER_ITEM);
 }
 
 /**
@@ -162,7 +177,7 @@ export function scoreOutfitColor(
   items: Item[],
   scores: Partial<Record<HarmonyType, number>> = {}
 ): OutfitColorResult {
-  const hexes = items.map(primaryColor).filter((c): c is string => !!c);
+  const hexes = items.flatMap(itemColors);
   const harmony = classifyHarmony(hexes);
   if (!harmony) return { score: 0.5, harmony: null };
   return { score: scores[harmony] ?? DEFAULT_HARMONY_SCORES[harmony], harmony };

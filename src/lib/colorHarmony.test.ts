@@ -97,10 +97,23 @@ describe('scoreOutfitColor', () => {
     expect(withLoudShoes.score).toBeLessThan(withoutShoes.score);
   });
 
-  it('does not favour busy multi-colour items: only the main colour counts', () => {
+  it('uses all colours of a multi-colour item: a loud print scores lower than a plain piece', () => {
     const busy = item('#000000', { colors: ['#000000', '#d62828', '#28d628'] });
     const plain = item('#000000');
-    expect(scoreOutfitColor([busy, item('#ffffff')]).score).toBe(scoreOutfitColor([plain, item('#ffffff')]).score);
+    expect(scoreOutfitColor([busy, item('#ffffff')]).score).toBeLessThan(scoreOutfitColor([plain, item('#ffffff')]).score);
+  });
+
+  it('rewards picking a colour up from the print', () => {
+    const print = item('#d62828', { colors: ['#d62828', '#ffffff', '#28d628'] });
+    const redPants = item('#d62828', { category: 'bottom' });
+    const orangePants = item('#f28c28', { category: 'bottom' });
+    expect(scoreOutfitColor([print, redPants]).score).toBeGreaterThan(scoreOutfitColor([print, orangePants]).score);
+  });
+
+  it('counts a multi-colour item at most three colours and ignores duplicates', () => {
+    const print = item('#d62828', { colors: ['#d62828', '#d62828', '#ffffff', '#28d628', '#2828d6'] });
+    const three = item('#d62828', { colors: ['#d62828', '#ffffff', '#28d628'] });
+    expect(scoreOutfitColor([print]).harmony).toBe(scoreOutfitColor([three]).harmony);
   });
 
   it('is neutral (0.5) and has no harmony when nothing has a colour', () => {

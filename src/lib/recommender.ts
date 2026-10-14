@@ -255,7 +255,11 @@ function pickComplement(candidates: Item[], base: Item[], ctx: RecommenderContex
   );
 }
 
-export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderContext): Suggestion[] {
+export function generateOutfitCombinations(
+  filtered: Item[],
+  ctx: RecommenderContext,
+  limit: number = DEFAULT_RESULT_LIMIT
+): Suggestion[] {
   const tops = filtered.filter((i) => i.category === 'top');
   const bottoms = filtered.filter((i) => i.category === 'bottom');
   const dresses = filtered.filter((i) => i.category === 'dress');
@@ -311,27 +315,45 @@ export function generateOutfitCombinations(filtered: Item[], ctx: RecommenderCon
     }
   }
 
-  return combinations
-    .sort((a, b) => b.score - a.score)
-    .filter((combo, index, arr) => {
-      const topId = combo.items.find((i) => i.category === 'top' || i.category === 'dress')?.id;
-      const bottomId = combo.items.find((i) => i.category === 'bottom')?.id;
-      const key = `${topId}-${bottomId}`;
-      return (
-        arr.findIndex((c) => {
-          const cTopId = c.items.find((i) => i.category === 'top' || i.category === 'dress')?.id;
-          const cBottomId = c.items.find((i) => i.category === 'bottom')?.id;
-          return `${cTopId}-${cBottomId}` === key;
-        }) === index
-      );
-    })
-    .reduce((unique: Suggestion[], combo) => {
-      if (unique.length >= 3) return unique;
-      const bottomId = combo.items.find((i) => i.category === 'bottom' || i.category === 'dress')?.id;
-      const topId = combo.items.find((i) => i.category === 'top')?.id;
-      if (unique.some((c) => c.items.find((i) => i.category === 'bottom' || i.category === 'dress')?.id === bottomId)) return unique;
-      if (topId && unique.some((c) => c.items.find((i) => i.category === 'top')?.id === topId)) return unique;
-      unique.push(combo);
-      return unique;
-    }, []);
+  return selectDiverse(combinations, limit);
+}
+
+/** How many suggestions are returned by default. */
+export const DEFAULT_RESULT_LIMIT = 10;
+/** Points taken off a suggestion for every time one of its main pieces was already picked. */
+export const REPEAT_PENALTY = 10;
+
+const CORE_CATEGORIES = new Set(['top', 'bottom', 'dress']);
+
+/**
+ * Greedy diverse selection: always take the best remaining suggestion, but subtract
+ * REPEAT_PENALTY for each earlier use of any of its top/bottom/dress pieces.
+ * A piece is never banned, so a small wardrobe still gets a full list.
+ * Returned suggestions keep their real score.
+ */
+function selectDiverse(combinations: Suggestion[], limit: number): Suggestion[] {
+  const remaining = [...combinations].sort((a, b) => b.score - a.score);
+  const uses = new Map<number, number>();
+  const picked: Suggestion[] = [];
+
+  while (picked.length < limit && remaining.length) {
+    let bestIndex = 0;
+    let bestAdjusted = -Infinity;
+    remaining.forEach((combo, index) => {
+      let adjusted = combo.score;
+      for (const piece of combo.items) {
+        if (CORE_CATEGORIES.has(piece.category)) adjusted -= REPEAT_PENALTY * (uses.get(piece.id) ?? 0);
+      }
+      if (adjusted > bestAdjusted) {
+        bestAdjusted = adjusted;
+        bestIndex = index;
+      }
+    });
+    const [chosen] = remaining.splice(bestIndex, 1);
+    picked.push(chosen);
+    for (const piece of chosen.items) {
+      if (CORE_CATEGORIES.has(piece.category)) uses.set(piece.id, (uses.get(piece.id) ?? 0) + 1);
+    }
+  }
+  return picked;
 }
