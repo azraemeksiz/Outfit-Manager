@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkCombinationHistory, computeScore, generateOutfitCombinations, filterItems } from './recommender';
+import { checkCombinationHistory, computeScore, diagnoseEmpty, generateOutfitCombinations, filterItems } from './recommender';
 import type { RecommenderContext } from './recommender';
 import type { Item } from './types';
 
@@ -191,6 +191,82 @@ describe('recommender scenarios', () => {
     });
   });
 
+  describe('occasion: an explicit match is rewarded, never required', () => {
+    const base = (over: Partial<Item>) => item({ category: 'top', selected_color: '#101010', ...over });
+
+    it('a piece tagged for the selected occasion outranks an untagged one with the same look', () => {
+      const tagged = base({ occasions: ['Formal'] });
+      const untagged = base({ occasions: [] });
+      const bottom = item({ category: 'bottom', selected_color: '#ffffff', occasions: ['Formal'] });
+      const result = suggest([untagged, tagged, bottom], ctxAt(20, { occasion: 'Formal' }));
+      expect(result.length).toBe(2);
+      expect(result[0].items.map((i) => i.id)).toContain(tagged.id);
+      expect(result[0].score).toBeGreaterThan(result[1].score);
+    });
+
+    it('untagged pieces are still allowed (soft preference, no ban)', () => {
+      const untagged = base({ occasions: [] });
+      const bottom = item({ category: 'bottom', occasions: [] });
+      expect(suggest([untagged, bottom], ctxAt(20, { occasion: 'Formal' })).length).toBe(1);
+    });
+
+    it('without an occasion there is no occasion criterion', () => {
+      const b = computeScore(ctxAt(20), base({}), item({ category: 'bottom' }), null, null);
+      expect(b.max.occasion).toBe(0);
+      expect(b.occasion).toBe(0);
+    });
+
+    it('with an occasion the criteria still sum to 100', () => {
+      const b = computeScore(ctxAt(20, { occasion: 'Casual' }), base({ occasions: ['Casual'] }), item({ category: 'bottom' }), null, null);
+      const m = b.max;
+      expect(m.weather + m.color + m.pattern + m.silhouette + m.history + m.occasion).toBe(100);
+      expect(m.occasion).toBeGreaterThan(0);
+    });
+
+    it('with a style and an occasion the criteria also sum to 100', () => {
+      const b = computeScore(ctxAt(20, { occasion: 'Casual', style: 'minimal' }), base({}), item({ category: 'bottom' }), null, null);
+      const m = b.max;
+      expect(m.weather + m.color + m.pattern + m.silhouette + m.history + m.occasion).toBe(100);
+    });
+  });
+
+  describe('explaining an empty result', () => {
+    const diagnose = (items: Item[], ctx: RecommenderContext) => diagnoseEmpty(items, ctx);
+
+    it('no clean items at all', () => {
+      expect(diagnose([], ctxAt(20)).reason).toBe('no-items');
+    });
+
+    it('everything is tagged for another occasion', () => {
+      const items = [
+        item({ category: 'top', occasions: ['Sport'] }),
+        item({ category: 'bottom', occasions: ['Sport'] })
+      ];
+      const d = diagnose(items, ctxAt(20, { occasion: 'Formal' }));
+      expect(d.reason).toBe('occasion');
+      expect(d.message).toContain('Formal');
+    });
+
+    it('the weather removes the only pieces', () => {
+      const items = [item({ category: 'top', seasons: ['winter'] }), item({ category: 'bottom', seasons: ['winter'] })];
+      const d = diagnose(items, ctxAt(30));
+      expect(d.reason).toBe('weather');
+      expect(d.message).toContain('30');
+    });
+
+    it('a basic category is missing', () => {
+      const d = diagnose([item({ category: 'top' })], ctxAt(20));
+      expect(d.reason).toBe('missing-category');
+      expect(d.message.toLowerCase()).toContain('bottom');
+    });
+
+    it('a diagnosis is only meaningful when the result is empty: a normal wardrobe is not explained away', () => {
+      const items = [item({ category: 'top' }), item({ category: 'bottom' })];
+      expect(suggest(items, ctxAt(20)).length).toBe(1);
+      expect(diagnose(items, ctxAt(20)).reason).toBe('unknown');
+    });
+  });
+
   describe('robustness', () => {
     it('skips a worn-history entry with a malformed date instead of counting it', () => {
       const entry = { date: 'garbage', is_worn: true, outfits: { item_list: [{ id: 1 }, { id: 2 }] } };
@@ -328,10 +404,10 @@ describe('recommender scenarios', () => {
         const p = fitted('loose', 'slim');
         const b = computeScore(ctxAt(20, { style: 'streetwear' }), p.top, p.bottom, null, null);
         expect(b.silhouetteType).toBe('contrast');
-        expect(b.max.weather + b.max.color + b.max.pattern + b.max.silhouette + b.max.history).toBe(100);
+        expect(b.max.weather + b.max.color + b.max.pattern + b.max.silhouette + b.max.history + b.max.occasion).toBe(100);
         const none = computeScore(ctxAt(20), p.top, p.bottom, null, null);
         expect(none.max.silhouette).toBe(0);
-        expect(none.max.weather + none.max.color + none.max.pattern + none.max.history).toBe(100);
+        expect(none.max.weather + none.max.color + none.max.pattern + none.max.history + none.max.occasion).toBe(100);
       });
 
       it('a style never removes an outfit because of its fit', () => {
@@ -418,5 +494,4 @@ describe('recommender scenarios', () => {
     expect(suggest([], ctxAt(20))).toEqual([]);
   });
 
-  it.todo('returns an explanatory reason when the result is empty (needs result shape from Stage 5)');
 });

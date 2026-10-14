@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { buildUserStyleProfile, filterItems, generateOutfitCombinations } from '$lib/recommender';
+  import { buildUserStyleProfile, diagnoseEmpty, filterItems, generateOutfitCombinations } from '$lib/recommender';
   import type { RecommenderContext } from '$lib/recommender';
   import { STYLES } from '$lib/styles';
   import type { StyleId } from '$lib/styles';
@@ -15,6 +15,7 @@
   };
   let occasion = '';
   let style: StyleId | null = null;
+  let emptyMessage = '';
   let loading = false;
   let weatherLoading = false;
   let liveTemperature: number | null = null;
@@ -161,6 +162,7 @@
       wornHistory
     };
     suggestions = generateOutfitCombinations(filterItems(items, ctx), ctx);
+    emptyMessage = suggestions.length === 0 ? diagnoseEmpty(items, ctx).message : '';
     generated = true;
     loading = false;
   }
@@ -355,7 +357,7 @@
         <div class="bg-white rounded-[24px] p-8 text-center shadow-sm border border-gray-50">
           <p class="text-2xl mb-2">😕</p>
           <p class="font-bold text-gray-700">No suitable outfits found.</p>
-          <p class="text-gray-400 text-sm mt-1">Try adding more clean items or changing the occasion.</p>
+          <p class="text-gray-400 text-sm mt-1">{emptyMessage || 'Try adding more clean items or changing the occasion.'}</p>
         </div>
       {:else}
         <div class="space-y-4">
@@ -381,6 +383,11 @@
                 <span class="text-[11px] font-bold bg-pink-50 text-pink-600 px-2.5 py-1 rounded-full">
                   🌀 Pattern {suggestion.scoreBreakdown.pattern}/{suggestion.scoreBreakdown.max.pattern}
                 </span>
+                {#if suggestion.scoreBreakdown.max.occasion > 0}
+                  <span class="text-[11px] font-bold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-full">
+                    🎯 {occasion} {suggestion.scoreBreakdown.occasion}/{suggestion.scoreBreakdown.max.occasion}
+                  </span>
+                {/if}
                 {#if suggestion.scoreBreakdown.max.silhouette > 0}
                   <span class="text-[11px] font-bold bg-teal-50 text-teal-600 px-2.5 py-1 rounded-full">
                     👖 Fit {suggestion.scoreBreakdown.silhouette}/{suggestion.scoreBreakdown.max.silhouette}{suggestion.scoreBreakdown.silhouetteType ? ` · ${silhouetteLabels[suggestion.scoreBreakdown.silhouetteType]}` : ' · not tagged'}

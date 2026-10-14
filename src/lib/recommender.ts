@@ -242,20 +242,23 @@ export function computeScore(
   // Silhouette only counts when a style is selected; then it takes points from colour, pattern and freshness.
   const silhouetteType = classifySilhouette(isDress ? null : top, bottom);
   const s = ctx.style ? silhouetteScoreForStyle(ctx.style, silhouetteType) : 0;
-  const max = ctx.style ? MAX_POINTS_WITH_STYLE : MAX_POINTS_NO_STYLE;
+  const max = maxPointsFor(ctx);
 
   const weather = Math.round(w * max.weather);
   const color = Math.round(c * max.color);
   const pattern = Math.round(p * max.pattern);
   const silhouette = Math.round(s * max.silhouette);
   const history = Math.round(h * max.history);
+  // An explicit occasion tag on the main pieces is rewarded; untagged pieces are neutral, never banned.
+  const occasion = Math.round((ctx.occasion ? scoreOccasionNorm(coreItems, ctx.occasion) : 0) * max.occasion);
   return {
-    total: weather + color + pattern + silhouette + history,
+    total: weather + color + pattern + silhouette + history + occasion,
     weather,
     color,
     pattern,
     silhouette,
     history,
+    occasion,
     combinationStatus,
     colorHarmony: colorResult.harmony,
     silhouetteType,
@@ -264,8 +267,78 @@ export function computeScore(
 }
 
 /** Points per criterion (sum 100). Without a style there is no silhouette criterion. */
-export const MAX_POINTS_NO_STYLE = { weather: 40, color: 30, pattern: 15, silhouette: 0, history: 15 };
-export const MAX_POINTS_WITH_STYLE = { weather: 40, color: 25, pattern: 10, silhouette: 15, history: 10 };
+export const MAX_POINTS_NO_STYLE = { weather: 40, color: 30, pattern: 15, silhouette: 0, history: 15, occasion: 0 };
+export const MAX_POINTS_WITH_STYLE = { weather: 40, color: 25, pattern: 10, silhouette: 15, history: 10, occasion: 0 };
+/** Points an explicit occasion match is worth; they come out of the weather points, which a hard filter already guards. */
+export const OCCASION_POINTS = 10;
+
+export function maxPointsFor(ctx: RecommenderContext) {
+  const base = ctx.style ? MAX_POINTS_WITH_STYLE : MAX_POINTS_NO_STYLE;
+  return ctx.occasion
+    ? { ...base, weather: base.weather - OCCASION_POINTS, occasion: OCCASION_POINTS }
+    : { ...base };
+}
+
+/** 1 for a piece explicitly tagged with the occasion, 0.5 for an untagged piece (it fits anywhere); averaged over the main pieces. */
+export function scoreOccasionNorm(coreItems: Item[], occasion: string): number {
+  if (!coreItems.length) return 0.5;
+  const sum = coreItems.reduce((s, i) => s + (i.occasions?.includes(occasion) ? 1 : 0.5), 0);
+  return sum / coreItems.length;
+}
+
+export interface EmptyDiagnosis {
+  reason: 'no-items' | 'occasion' | 'weather' | 'missing-category' | 'unknown';
+  message: string;
+}
+
+const hasOutfitBase = (items: Item[]) =>
+  items.some((i) => i.category === 'dress') ||
+  (items.some((i) => i.category === 'top') && items.some((i) => i.category === 'bottom'));
+
+/**
+ * Explains why no outfit could be built. Call it when generateOutfitCombinations returns nothing;
+ * 'unknown' means the pieces are fine and no specific cause was found.
+ */
+export function diagnoseEmpty(allItems: Item[], ctx: RecommenderContext): EmptyDiagnosis {
+  if (!allItems.length) {
+    return { reason: 'no-items', message: 'You have no clean items. Add items or finish the laundry.' };
+  }
+
+  const byOccasion = allItems.filter(
+    (i) => !(ctx.occasion && i.occasions && i.occasions.length > 0 && !i.occasions.includes(ctx.occasion))
+  );
+  if (!hasOutfitBase(byOccasion) && hasOutfitBase(allItems)) {
+    const removed = allItems.length - byOccasion.length;
+    return {
+      reason: 'occasion',
+      message: `${removed} of your ${allItems.length} clean items are tagged for other occasions, so nothing is left for ${ctx.occasion}. Choose "Any" or tag more pieces with ${ctx.occasion}.`
+    };
+  }
+
+  const byWeather = byOccasion.filter((i) => fitsWeather(i, ctx));
+  if (!hasOutfitBase(byWeather) && hasOutfitBase(byOccasion)) {
+    const temp = ctx.temperature === null ? 'the current weather' : `${ctx.temperature}°C`;
+    return {
+      reason: 'weather',
+      message: `Your clean pieces are tagged for a different season than ${temp}. Add pieces for this weather or check the season tags.`
+    };
+  }
+
+  if (!hasOutfitBase(byWeather)) {
+    const missing: string[] = [];
+    const has = (c: string) => byWeather.some((i) => i.category === c);
+    if (!has('dress')) {
+      if (!has('top')) missing.push('a top');
+      if (!has('bottom')) missing.push('a bottom');
+    }
+    return {
+      reason: 'missing-category',
+      message: `An outfit needs a dress or a top and a bottom. You are missing ${missing.join(' and ') || 'basic pieces'} (clean pieces only).`
+    };
+  }
+
+  return { reason: 'unknown', message: 'No outfit scored high enough. Try another occasion or style.' };
+}
 
 /** Highest score wins; on a tie the lowest id wins, so the wardrobe order never matters. */
 function pickBest(list: Item[], score: (item: Item) => number): Item | null {

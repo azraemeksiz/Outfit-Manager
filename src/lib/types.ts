@@ -49,6 +49,8 @@ export interface ScoreBreakdown {
   pattern: number;
   /** Silhouette points from the fit tags; 0 when no style is selected. */
   silhouette: number;
+  /** Points for an explicit occasion tag on the main pieces; 0 when no occasion is selected. */
+  occasion: number;
   history: number;
   combinationStatus: CombinationStatus;
   /** Harmony type of the outfit's colours (null when no piece has a colour). */
@@ -56,7 +58,7 @@ export interface ScoreBreakdown {
   /** Silhouette of top + bottom (or the dress); null when a fit tag is missing. */
   silhouetteType: SilhouetteType | null;
   /** Maximum points of each criterion for this outfit (they always sum to 100). */
-  max: { weather: number; color: number; pattern: number; silhouette: number; history: number };
+  max: { weather: number; color: number; pattern: number; silhouette: number; history: number; occasion: number };
 }
 
 export interface Suggestion {
