@@ -4,5 +4,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	// Svelte components must load their browser build when tests mount them.
+	resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
 	test: { include: ['src/**/*.test.ts'] }
 });
