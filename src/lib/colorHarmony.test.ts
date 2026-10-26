@@ -209,16 +209,27 @@ describe('statement piece (one multi-coloured piece)', () => {
     expect(isStatementPiece(camo)).toBe(false);
   });
 
-  it('a statement piece with neutral pants is not a clash: it counts as its main colour', () => {
+  it('a statement piece with neutral pants is a calm accent outfit, not a clash', () => {
     expect(scoreOutfitColor([colourBlock(), blackPants]).harmony).toBe('accent');
   });
 
-  it('a statement piece is judged by its main colour against the other pieces', () => {
-    const withBlock = scoreOutfitColor([colourBlock(), greenPants]);
-    const withPlain = scoreOutfitColor([item(PURPLE), greenPants]);
-    expect(withBlock.harmony).not.toBe('clash');
-    expect(withBlock.harmony).toBe(withPlain.harmony);
-    expect(withBlock.score).toBe(withPlain.score);
+  it('a piece that picks up one of the print colours goes with it', () => {
+    expect(scoreOutfitColor([colourBlock(), greenPants]).harmony).toBe('accent');
+  });
+
+  it('a near shade of a print colour still counts as picked up', () => {
+    const lightGreen = item('#3aa856', { id: 2, category: 'bottom' });
+    expect(scoreOutfitColor([colourBlock(), lightGreen]).harmony).toBe('accent');
+  });
+
+  it('a piece that brings a colour the print does not have is a clash', () => {
+    const bluePants = item('#2828d6', { id: 2, category: 'bottom' });
+    expect(scoreOutfitColor([colourBlock(), bluePants]).harmony).toBe('clash');
+  });
+
+  it('every colour of the statement piece counts for the tone', () => {
+    const r = scoreOutfitColor([colourBlock(), blackPants]);
+    expect(r.tone).toBe(classifyTone([PURPLE, '#f2c12e', '#e8702a', '#2e9e4a', '#101010']));
   });
 
   it('two statement pieces in one outfit are a clash', () => {

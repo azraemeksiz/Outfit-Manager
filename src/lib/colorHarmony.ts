@@ -220,19 +220,42 @@ export function isStatementPiece(item: Item): boolean {
   return hues.length >= STATEMENT_FAMILIES && hueFamilies(hues).length >= STATEMENT_FAMILIES;
 }
 
+const chromaticHues = (hexes: string[]): number[] =>
+  hexes
+    .map(classifyColor)
+    .filter((c): c is ParsedColor => c !== null && c.kind === 'chromatic')
+    .map((c) => c.h);
+
+/**
+ * One statement piece with the rest of the outfit: calm ('accent') when the other pieces are neutral or
+ * pick up a colour of the print (same hue family), a clash when one of them brings a colour the print lacks.
+ */
+function statementHarmony(statement: Item, others: Item[]): HarmonyType {
+  const printHues = chromaticHues(itemColors(statement));
+  const otherHues = chromaticHues(others.flatMap(itemColors));
+  const pickedUp = otherHues.every((h) => printHues.some((p) => circDist(h, p) <= SAME_FAMILY_DEG));
+  return pickedUp ? 'accent' : 'clash';
+}
+
 /**
  * Scores the colour harmony of all pieces together (0..1).
- * A statement piece is judged by its main colour only, so one loud piece does not turn the whole outfit
- * into a clash; two statement pieces together are a clash. No usable colour -> neutral 0.5 with harmony null.
+ * All colours of every piece count. One multi-coloured statement piece does not turn the outfit into a clash
+ * by itself: the others must be neutral or pick up one of its colours. Two statement pieces are a clash.
+ * No usable colour -> neutral 0.5 with harmony null.
  */
 export function scoreOutfitColor(
   items: Item[],
   scores: Partial<Record<HarmonyType, number>> = {},
   toneScores?: Partial<Record<ToneType, number>>
 ): OutfitColorResult {
-  const statements = items.filter(isStatementPiece).length;
-  const hexes = items.flatMap((i) => (isStatementPiece(i) ? itemColors(i).slice(0, 1) : itemColors(i)));
-  const harmony = statements >= 2 ? 'clash' : classifyHarmony(hexes);
+  const statements = items.filter(isStatementPiece);
+  const hexes = items.flatMap(itemColors);
+  const harmony =
+    statements.length >= 2
+      ? 'clash'
+      : statements.length === 1
+        ? statementHarmony(statements[0], items.filter((i) => i !== statements[0]))
+        : classifyHarmony(hexes);
   if (!harmony) return { score: 0.5, harmony: null, tone: null };
   const tone = classifyTone(hexes);
   const harmonyScore = scores[harmony] ?? DEFAULT_HARMONY_SCORES[harmony];
