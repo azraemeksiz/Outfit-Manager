@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { paletteForItem } from '$lib/palette';
 
   let items: any[] = [];
   let loading = true;
@@ -149,7 +150,11 @@
               <h3 class="text-sm font-bold text-gray-900 mb-1 truncate">{item.name}</h3>
               <div class="flex items-center justify-between">
                 <p class="text-sm text-gray-500 capitalize">{item.category}</p>
-                <div class="w-4 h-4 rounded-full border border-gray-100" style="background-color: {item.selected_color}"></div>
+                <div class="flex items-center -space-x-1">
+                  {#each paletteForItem(item.selected_color, item.colors) as c}
+                    <div class="w-4 h-4 rounded-full border border-white shadow-sm" style="background-color: {c}"></div>
+                  {/each}
+                </div>
               </div>
             </div>
 
