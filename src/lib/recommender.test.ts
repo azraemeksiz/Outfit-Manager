@@ -283,7 +283,7 @@ describe('recommender scenarios', () => {
         category: 'shoes',
         selected_color: '#d62828',
         is_patterned: true,
-        colors: ['#d62828', '#28d628', '#2828d6']
+        colors: ['#d62828', '#28d628']
       });
       const result = suggest([...tops, ...bottoms, ...good, loud], ctxAt(20), 6);
       expect(idsOf(result, 'shoes')).not.toContain(loud.id);

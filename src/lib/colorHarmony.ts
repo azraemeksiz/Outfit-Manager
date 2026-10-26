@@ -205,17 +205,34 @@ export function itemColors(item: Item): string[] {
   return unique.slice(0, MAX_COLORS_PER_ITEM);
 }
 
+/** A piece whose own chromatic colours span this many hue families is a statement piece. */
+const STATEMENT_FAMILIES = 3;
+
+/**
+ * A multi-coloured piece (colour-block hoodie, loud print): its own colours already span three or more
+ * unrelated hue families. Near-neutrals (camouflage greens/browns, denim) never count as a family.
+ */
+export function isStatementPiece(item: Item): boolean {
+  const hues = itemColors(item)
+    .map(classifyColor)
+    .filter((c): c is ParsedColor => c !== null && c.kind === 'chromatic')
+    .map((c) => c.h);
+  return hues.length >= STATEMENT_FAMILIES && hueFamilies(hues).length >= STATEMENT_FAMILIES;
+}
+
 /**
  * Scores the colour harmony of all pieces together (0..1).
- * No usable colour -> neutral 0.5 with harmony null.
+ * A statement piece is judged by its main colour only, so one loud piece does not turn the whole outfit
+ * into a clash; two statement pieces together are a clash. No usable colour -> neutral 0.5 with harmony null.
  */
 export function scoreOutfitColor(
   items: Item[],
   scores: Partial<Record<HarmonyType, number>> = {},
   toneScores?: Partial<Record<ToneType, number>>
 ): OutfitColorResult {
-  const hexes = items.flatMap(itemColors);
-  const harmony = classifyHarmony(hexes);
+  const statements = items.filter(isStatementPiece).length;
+  const hexes = items.flatMap((i) => (isStatementPiece(i) ? itemColors(i).slice(0, 1) : itemColors(i)));
+  const harmony = statements >= 2 ? 'clash' : classifyHarmony(hexes);
   if (!harmony) return { score: 0.5, harmony: null, tone: null };
   const tone = classifyTone(hexes);
   const harmonyScore = scores[harmony] ?? DEFAULT_HARMONY_SCORES[harmony];

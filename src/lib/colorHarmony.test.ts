@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyColor, classifyHarmony, classifyTone, itemColors, scoreOutfitColor } from './colorHarmony';
+import { classifyColor, classifyHarmony, classifyTone, isStatementPiece, itemColors, scoreOutfitColor } from './colorHarmony';
 import type { Item } from './types';
 
 const item = (selected_color: string | null, over: Partial<Item> = {}): Item => ({
@@ -188,5 +188,46 @@ describe('scoreOutfitColor', () => {
   it('accepts a custom score table (for per-style preferences later)', () => {
     const r = scoreOutfitColor([item('#d62828'), item('#28d6d6')], { complementary: 1 });
     expect(r.score).toBe(1);
+  });
+});
+
+describe('statement piece (one multi-coloured piece)', () => {
+  const PURPLE = '#6b1f5c';
+  const colourBlock = (over: Partial<Item> = {}) =>
+    item(PURPLE, { colors: [PURPLE, '#f2c12e', '#e8702a', '#2e9e4a'], is_patterned: true, ...over });
+  const blackPants = item('#101010', { id: 2, category: 'bottom' });
+  const greenPants = item('#2e9e4a', { id: 2, category: 'bottom' });
+
+  it('a piece whose own colours span three or more hue families is a statement piece', () => {
+    expect(isStatementPiece(colourBlock())).toBe(true);
+    expect(isStatementPiece(item('#d62828', { colors: ['#d62828', '#28d628', '#ffffff'] }))).toBe(false);
+    expect(isStatementPiece(item('#d62828'))).toBe(false);
+  });
+
+  it('near-neutral colours do not make a piece a statement piece (camouflage)', () => {
+    const camo = item('#4b5320', { colors: ['#4b5320', '#5a3a22', '#101010', '#8a9a5b'] });
+    expect(isStatementPiece(camo)).toBe(false);
+  });
+
+  it('a statement piece with neutral pants is not a clash: it counts as its main colour', () => {
+    expect(scoreOutfitColor([colourBlock(), blackPants]).harmony).toBe('accent');
+  });
+
+  it('a statement piece is judged by its main colour against the other pieces', () => {
+    const withBlock = scoreOutfitColor([colourBlock(), greenPants]);
+    const withPlain = scoreOutfitColor([item(PURPLE), greenPants]);
+    expect(withBlock.harmony).not.toBe('clash');
+    expect(withBlock.harmony).toBe(withPlain.harmony);
+    expect(withBlock.score).toBe(withPlain.score);
+  });
+
+  it('two statement pieces in one outfit are a clash', () => {
+    const second = item('#d62828', { id: 3, category: 'bottom', colors: ['#d62828', '#28d628', '#2828d6'] });
+    expect(scoreOutfitColor([colourBlock(), second]).harmony).toBe('clash');
+  });
+
+  it('an outfit without a statement piece is scored exactly as before', () => {
+    const print = item('#d62828', { colors: ['#d62828', '#ffffff', '#28d628'] });
+    expect(scoreOutfitColor([print, item('#000000', { id: 2 })]).harmony).toBe(classifyHarmony(['#d62828', '#ffffff', '#28d628', '#000000']));
   });
 });
