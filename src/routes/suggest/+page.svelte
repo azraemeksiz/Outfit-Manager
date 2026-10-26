@@ -3,10 +3,10 @@
   import { supabase } from '$lib/supabase';
   import { buildUserStyleProfile, diagnoseEmpty, filterItems, generateOutfitCombinations } from '$lib/recommender';
   import type { RecommenderContext } from '$lib/recommender';
-  import CalendarModal from '$lib/components/CalendarModal.svelte';
-  import StyleOccasionPicker from '$lib/components/StyleOccasionPicker.svelte';
-  import SuggestionCard from '$lib/components/SuggestionCard.svelte';
-  import WeatherCard from '$lib/components/WeatherCard.svelte';
+  import CalendarModal from './CalendarModal.svelte';
+  import StyleOccasionPicker from './StyleOccasionPicker.svelte';
+  import SuggestionCard from './SuggestionCard.svelte';
+  import WeatherCard from './WeatherCard.svelte';
   import type { StyleId } from '$lib/styles';
   import type { CalendarEntry, Item, Suggestion, UserStyleProfile } from '$lib/types';
 
