@@ -114,9 +114,9 @@
         {#each filteredItems as item}
           <div class="group bg-white rounded-[28px] overflow-hidden shadow-sm border border-gray-50 hover:shadow-xl transition-all duration-300">
 
-            <div class="aspect-[3/4] bg-[#F1F4F9] flex items-center justify-center transition-transform duration-500 relative overflow-hidden">
+            <div class="aspect-[3/4] bg-white flex items-center justify-center transition-transform duration-500 relative overflow-hidden">
               {#if item.photo_url}
-                <img src={item.photo_url} alt={item.name} class="w-full h-full object-cover" />
+                <img src={item.photo_url} alt={item.name} class="w-full h-full {item.category === 'dress' ? 'object-contain' : 'object-cover'}" />
               {:else}
                 <span class="text-gray-400 font-bold uppercase tracking-widest text-xs">{item.category}</span>
               {/if}
